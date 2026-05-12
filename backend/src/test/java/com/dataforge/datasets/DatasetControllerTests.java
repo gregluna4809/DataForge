@@ -39,6 +39,9 @@ class DatasetControllerTests {
     private DatasetService datasetService;
 
     @MockBean
+    private DatasetUploadService datasetUploadService;
+
+    @MockBean
     private JwtService jwtService;
 
     @MockBean
@@ -101,6 +104,8 @@ class DatasetControllerTests {
                 100,
                 8,
                 4096,
+                null,
+                null,
                 DatasetStatus.METADATA_CREATED,
                 new UploadedByResponse(
                         UUID.fromString("22d91774-dd28-443f-b266-9f0d03820f92"),

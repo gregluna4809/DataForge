@@ -45,6 +45,9 @@ DATAFORGE_DB_PASSWORD=dataforge
 DATAFORGE_SERVER_PORT=8080
 DATAFORGE_JWT_SECRET=dataforge-local-development-secret-change-before-production-64chars
 DATAFORGE_JWT_EXPIRATION_MINUTES=60
+DATAFORGE_UPLOAD_DIRECTORY=./data/uploads
+DATAFORGE_UPLOAD_MAX_FILE_SIZE=10MB
+DATAFORGE_UPLOAD_MAX_FILE_SIZE_BYTES=10485760
 ```
 
 Flyway is enabled and reads migrations from:
@@ -80,6 +83,7 @@ Dataset metadata endpoints:
 ```text
 GET  http://localhost:8080/api/datasets
 POST http://localhost:8080/api/datasets
+POST http://localhost:8080/api/datasets/{datasetId}/upload
 ```
 
 Use the login or registration response token as:
@@ -87,6 +91,8 @@ Use the login or registration response token as:
 ```text
 Authorization: Bearer <accessToken>
 ```
+
+Dataset uploads use `multipart/form-data` with a `file` part. Only `.csv` filenames are accepted in the initial local-storage implementation.
 
 ## Build
 

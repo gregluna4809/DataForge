@@ -14,6 +14,8 @@ public record DatasetResponse(
         long rowCount,
         int columnCount,
         long fileSizeBytes,
+        String storedFilename,
+        Instant fileUploadedAt,
         DatasetStatus status,
         UploadedByResponse uploadedBy
 ) {
@@ -28,6 +30,8 @@ public record DatasetResponse(
                 dataset.getRowCount(),
                 dataset.getColumnCount(),
                 dataset.getFileSizeBytes(),
+                dataset.getStoredFilename(),
+                dataset.getFileUploadedAt(),
                 dataset.getStatus(),
                 new UploadedByResponse(
                         dataset.getUploadedBy().getId(),

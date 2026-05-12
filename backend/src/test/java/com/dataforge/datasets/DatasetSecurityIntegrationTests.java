@@ -3,6 +3,7 @@ package com.dataforge.datasets;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,12 +23,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
                 + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
+                + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration",
+        "dataforge.uploads.directory=target/test-uploads",
+        "dataforge.uploads.max-file-size-bytes=1048576"
 })
 @AutoConfigureMockMvc
 class DatasetSecurityIntegrationTests {
@@ -102,6 +106,49 @@ class DatasetSecurityIntegrationTests {
                 .andExpect(jsonPath("$.name").value("Customer Imports"))
                 .andExpect(jsonPath("$.status").value("METADATA_CREATED"))
                 .andExpect(jsonPath("$.uploadedBy.email").value(USER_EMAIL));
+    }
+
+    @Test
+    void authenticatedUploadCsvWithJwtStoresFileAndUpdatesDataset() throws Exception {
+        Dataset dataset = dataset();
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetRepository.save(any(Dataset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "customers.csv",
+                "text/csv",
+                "id,name\n1,Ada\n".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/datasets/{datasetId}/upload", dataset.getId())
+                        .file(file)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.datasetId").value(dataset.getId().toString()))
+                .andExpect(jsonPath("$.originalFilename").value("customers.csv"))
+                .andExpect(jsonPath("$.storedFilename").isNotEmpty())
+                .andExpect(jsonPath("$.fileSizeBytes").value(14))
+                .andExpect(jsonPath("$.status").value("UPLOADED"));
+    }
+
+    @Test
+    void uploadRejectsNonCsvFiles() throws Exception {
+        Dataset dataset = dataset();
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "customers.txt",
+                "text/plain",
+                "not csv".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/datasets/{datasetId}/upload", dataset.getId())
+                        .file(file)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Only .csv files are supported"));
     }
 
     @Test

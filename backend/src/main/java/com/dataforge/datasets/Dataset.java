@@ -44,6 +44,18 @@ public class Dataset {
     @Column(name = "file_size_bytes", nullable = false)
     private long fileSizeBytes;
 
+    @Column(name = "stored_filename", length = 255)
+    private String storedFilename;
+
+    @Column(name = "storage_path", length = 1000)
+    private String storagePath;
+
+    @Column(name = "uploaded_file_content_type", length = 100)
+    private String uploadedFileContentType;
+
+    @Column(name = "file_uploaded_at")
+    private Instant fileUploadedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private DatasetStatus status;
@@ -115,5 +127,38 @@ public class Dataset {
 
     public User getUploadedBy() {
         return uploadedBy;
+    }
+
+    public String getStoredFilename() {
+        return storedFilename;
+    }
+
+    public String getStoragePath() {
+        return storagePath;
+    }
+
+    public String getUploadedFileContentType() {
+        return uploadedFileContentType;
+    }
+
+    public Instant getFileUploadedAt() {
+        return fileUploadedAt;
+    }
+
+    public void markUploaded(
+            String originalFilename,
+            String storedFilename,
+            String storagePath,
+            String contentType,
+            long fileSizeBytes,
+            Instant uploadedAt
+    ) {
+        this.originalFilename = originalFilename;
+        this.storedFilename = storedFilename;
+        this.storagePath = storagePath;
+        this.uploadedFileContentType = contentType;
+        this.fileSizeBytes = fileSizeBytes;
+        this.fileUploadedAt = uploadedAt;
+        this.status = DatasetStatus.UPLOADED;
     }
 }
