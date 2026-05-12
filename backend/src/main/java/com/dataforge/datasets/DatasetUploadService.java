@@ -21,15 +21,21 @@ public class DatasetUploadService {
     private static final String CSV_EXTENSION = ".csv";
 
     private final DatasetRepository datasetRepository;
+    private final CsvPreviewParser csvPreviewParser;
+    private final DatasetPreviewStorageService datasetPreviewStorageService;
     private final DatasetUploadProperties uploadProperties;
     private final UserRepository userRepository;
 
     public DatasetUploadService(
             DatasetRepository datasetRepository,
+            CsvPreviewParser csvPreviewParser,
+            DatasetPreviewStorageService datasetPreviewStorageService,
             DatasetUploadProperties uploadProperties,
             UserRepository userRepository
     ) {
         this.datasetRepository = datasetRepository;
+        this.csvPreviewParser = csvPreviewParser;
+        this.datasetPreviewStorageService = datasetPreviewStorageService;
         this.uploadProperties = uploadProperties;
         this.userRepository = userRepository;
     }
@@ -61,6 +67,8 @@ public class DatasetUploadService {
             throw new FileUploadException("Failed to store uploaded CSV file", exception);
         }
 
+        CsvPreview preview = csvPreviewParser.parse(storedPath);
+
         Instant uploadedAt = Instant.now();
         dataset.markUploaded(
                 originalFilename,
@@ -70,6 +78,8 @@ public class DatasetUploadService {
                 file.getSize(),
                 uploadedAt
         );
+        dataset.updateParsedColumnCount(preview.columnNames().size());
+        datasetPreviewStorageService.replacePreview(dataset, preview);
 
         Dataset savedDataset = datasetRepository.save(dataset);
         return DatasetUploadResponse.from(savedDataset);

@@ -48,6 +48,12 @@ class DatasetSecurityIntegrationTests {
     private DatasetRepository datasetRepository;
 
     @MockBean
+    private DatasetColumnRepository datasetColumnRepository;
+
+    @MockBean
+    private DatasetPreviewRowRepository datasetPreviewRowRepository;
+
+    @MockBean
     private UserRepository userRepository;
 
     private User user;
@@ -130,6 +136,36 @@ class DatasetSecurityIntegrationTests {
                 .andExpect(jsonPath("$.storedFilename").isNotEmpty())
                 .andExpect(jsonPath("$.fileSizeBytes").value(14))
                 .andExpect(jsonPath("$.status").value("UPLOADED"));
+    }
+
+    @Test
+    void authenticatedPreviewWithJwtReturnsOnlyOwnedDatasetPreview() throws Exception {
+        Dataset dataset = dataset();
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetColumnRepository.findByDatasetOrderByPositionAsc(dataset)).thenReturn(List.of(
+                new DatasetColumn(dataset, "id", 0),
+                new DatasetColumn(dataset, "name", 1)
+        ));
+        when(datasetPreviewRowRepository.findByDatasetOrderByPositionAsc(dataset)).thenReturn(List.of(
+                new DatasetPreviewRow(dataset, 0, "[\"1\",\"Ada\"]")
+        ));
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/preview", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dataset.id").value(dataset.getId().toString()))
+                .andExpect(jsonPath("$.columnNames[0]").value("id"))
+                .andExpect(jsonPath("$.rows[0][1]").value("Ada"));
+    }
+
+    @Test
+    void previewRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/preview", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
     }
 
     @Test

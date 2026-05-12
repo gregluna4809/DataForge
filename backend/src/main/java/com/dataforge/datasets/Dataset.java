@@ -145,6 +145,10 @@ public class Dataset {
         return fileUploadedAt;
     }
 
+    public void updateParsedColumnCount(int columnCount) {
+        this.columnCount = columnCount;
+    }
+
     public void markUploaded(
             String originalFilename,
             String storedFilename,

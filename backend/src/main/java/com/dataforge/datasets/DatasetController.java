@@ -1,6 +1,7 @@
 package com.dataforge.datasets;
 
 import com.dataforge.datasets.dto.CreateDatasetRequest;
+import com.dataforge.datasets.dto.DatasetPreviewResponse;
 import com.dataforge.datasets.dto.DatasetResponse;
 import com.dataforge.datasets.dto.DatasetUploadResponse;
 import jakarta.validation.Valid;
@@ -24,16 +25,30 @@ import org.springframework.web.multipart.MultipartFile;
 public class DatasetController {
 
     private final DatasetService datasetService;
+    private final DatasetPreviewService datasetPreviewService;
     private final DatasetUploadService datasetUploadService;
 
-    public DatasetController(DatasetService datasetService, DatasetUploadService datasetUploadService) {
+    public DatasetController(
+            DatasetService datasetService,
+            DatasetPreviewService datasetPreviewService,
+            DatasetUploadService datasetUploadService
+    ) {
         this.datasetService = datasetService;
+        this.datasetPreviewService = datasetPreviewService;
         this.datasetUploadService = datasetUploadService;
     }
 
     @GetMapping
     public ResponseEntity<List<DatasetResponse>> listDatasets(Principal principal) {
         return ResponseEntity.ok(datasetService.listDatasetsForUser(principal.getName()));
+    }
+
+    @GetMapping("/{datasetId}/preview")
+    public ResponseEntity<DatasetPreviewResponse> getDatasetPreview(
+            Principal principal,
+            @PathVariable UUID datasetId
+    ) {
+        return ResponseEntity.ok(datasetPreviewService.getPreview(principal.getName(), datasetId));
     }
 
     @PostMapping

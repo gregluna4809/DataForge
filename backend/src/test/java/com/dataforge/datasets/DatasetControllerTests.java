@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.dataforge.datasets.dto.CreateDatasetRequest;
+import com.dataforge.datasets.dto.DatasetPreviewResponse;
 import com.dataforge.datasets.dto.DatasetResponse;
 import com.dataforge.datasets.dto.DatasetResponse.UploadedByResponse;
 import java.time.Instant;
@@ -37,6 +38,9 @@ class DatasetControllerTests {
 
     @MockBean
     private DatasetService datasetService;
+
+    @MockBean
+    private DatasetPreviewService datasetPreviewService;
 
     @MockBean
     private DatasetUploadService datasetUploadService;
@@ -86,6 +90,27 @@ class DatasetControllerTests {
                 .andExpect(jsonPath("$.uploadedBy.email").value(USER_EMAIL));
 
         verify(datasetService).createDataset(eq(USER_EMAIL), any(CreateDatasetRequest.class));
+    }
+
+    @Test
+    void authenticatedGetDatasetPreviewReturnsMetadataColumnsAndRows() throws Exception {
+        DatasetResponse dataset = datasetResponse();
+        DatasetPreviewResponse preview = new DatasetPreviewResponse(
+                dataset,
+                List.of("id", "name", "notes"),
+                List.of(List.of("1", "Ada Lovelace", "first, customer"))
+        );
+        when(datasetPreviewService.getPreview(USER_EMAIL, dataset.id())).thenReturn(preview);
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/preview", dataset.id()).with(user(USER_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dataset.id").value(dataset.id().toString()))
+                .andExpect(jsonPath("$.dataset.name").value("Customer Imports"))
+                .andExpect(jsonPath("$.columnNames[0]").value("id"))
+                .andExpect(jsonPath("$.columnNames[2]").value("notes"))
+                .andExpect(jsonPath("$.rows[0][2]").value("first, customer"));
+
+        verify(datasetPreviewService).getPreview(USER_EMAIL, dataset.id());
     }
 
     @Test

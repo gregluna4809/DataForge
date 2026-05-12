@@ -5,6 +5,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 import com.dataforge.datasets.DatasetRepository;
+import com.dataforge.datasets.DatasetColumnRepository;
+import com.dataforge.datasets.DatasetPreviewRowRepository;
 import com.dataforge.users.UserRepository;
 
 @SpringBootTest(properties = {
@@ -19,6 +21,12 @@ class DataForgeApplicationTests {
 
     @MockBean
     private DatasetRepository datasetRepository;
+
+    @MockBean
+    private DatasetColumnRepository datasetColumnRepository;
+
+    @MockBean
+    private DatasetPreviewRowRepository datasetPreviewRowRepository;
 
     @Test
     void contextLoads() {
