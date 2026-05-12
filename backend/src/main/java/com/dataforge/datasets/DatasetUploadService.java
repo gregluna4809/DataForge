@@ -1,7 +1,9 @@
 package com.dataforge.datasets;
 
 import com.dataforge.datasets.dto.DatasetUploadResponse;
+import com.dataforge.profiling.DatasetColumnProfile;
 import com.dataforge.profiling.DatasetProfileService;
+import com.dataforge.quality.DatasetQualityService;
 import com.dataforge.users.User;
 import com.dataforge.users.UserRepository;
 import java.io.IOException;
@@ -10,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,7 @@ public class DatasetUploadService {
     private final CsvPreviewParser csvPreviewParser;
     private final DatasetPreviewStorageService datasetPreviewStorageService;
     private final DatasetProfileService datasetProfileService;
+    private final DatasetQualityService datasetQualityService;
     private final DatasetUploadProperties uploadProperties;
     private final UserRepository userRepository;
 
@@ -33,6 +37,7 @@ public class DatasetUploadService {
             CsvPreviewParser csvPreviewParser,
             DatasetPreviewStorageService datasetPreviewStorageService,
             DatasetProfileService datasetProfileService,
+            DatasetQualityService datasetQualityService,
             DatasetUploadProperties uploadProperties,
             UserRepository userRepository
     ) {
@@ -40,6 +45,7 @@ public class DatasetUploadService {
         this.csvPreviewParser = csvPreviewParser;
         this.datasetPreviewStorageService = datasetPreviewStorageService;
         this.datasetProfileService = datasetProfileService;
+        this.datasetQualityService = datasetQualityService;
         this.uploadProperties = uploadProperties;
         this.userRepository = userRepository;
     }
@@ -84,7 +90,8 @@ public class DatasetUploadService {
         );
         dataset.updateParsedColumnCount(preview.columnNames().size());
         datasetPreviewStorageService.replacePreview(dataset, preview);
-        datasetProfileService.profileAndStore(dataset, preview);
+        List<DatasetColumnProfile> profiles = datasetProfileService.profileAndStore(dataset, preview);
+        datasetQualityService.scoreAndStore(dataset, profiles);
 
         Dataset savedDataset = datasetRepository.save(dataset);
         return DatasetUploadResponse.from(savedDataset);

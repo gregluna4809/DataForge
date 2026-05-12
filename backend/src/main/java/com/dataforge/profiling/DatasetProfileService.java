@@ -40,18 +40,18 @@ public class DatasetProfileService {
     }
 
     @Transactional
-    public void profileAndStore(Dataset dataset) {
+    public List<DatasetColumnProfile> profileAndStore(Dataset dataset) {
         DatasetProfileResult result = datasetProfiler.profile(
                 datasetPreviewStorageService.columnNames(dataset),
                 datasetPreviewStorageService.rows(dataset)
         );
-        datasetProfileStorageService.replaceProfile(dataset, result);
+        return datasetProfileStorageService.replaceProfile(dataset, result);
     }
 
     @Transactional
-    public void profileAndStore(Dataset dataset, CsvPreview preview) {
+    public List<DatasetColumnProfile> profileAndStore(Dataset dataset, CsvPreview preview) {
         DatasetProfileResult result = datasetProfiler.profile(preview.columnNames(), preview.rows());
-        datasetProfileStorageService.replaceProfile(dataset, result);
+        return datasetProfileStorageService.replaceProfile(dataset, result);
     }
 
     @Transactional

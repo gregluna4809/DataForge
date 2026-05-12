@@ -8,12 +8,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.dataforge.ai.AiInsightGenerationStatus;
+import com.dataforge.ai.DatasetAiInsight;
+import com.dataforge.ai.DatasetAiInsightRepository;
 import com.dataforge.security.JwtService;
 import com.dataforge.profiling.DatasetColumnProfile;
 import com.dataforge.profiling.DatasetColumnProfileRepository;
 import com.dataforge.profiling.ColumnProfileResult;
 import com.dataforge.profiling.InferredDataType;
 import com.dataforge.profiling.MostCommonValue;
+import com.dataforge.quality.ColumnQualityResult;
+import com.dataforge.quality.DatasetColumnQualityScore;
+import com.dataforge.quality.DatasetQualityScore;
+import com.dataforge.quality.DatasetQualityScoreRepository;
+import com.dataforge.quality.QualityIssueSummary;
+import com.dataforge.quality.QualityIssueType;
 import com.dataforge.users.User;
 import com.dataforge.users.UserRepository;
 import java.time.Instant;
@@ -62,6 +71,12 @@ class DatasetSecurityIntegrationTests {
     private DatasetColumnProfileRepository datasetColumnProfileRepository;
 
     @MockBean
+    private DatasetQualityScoreRepository datasetQualityScoreRepository;
+
+    @MockBean
+    private DatasetAiInsightRepository datasetAiInsightRepository;
+
+    @MockBean
     private UserRepository userRepository;
 
     private User user;
@@ -81,6 +96,8 @@ class DatasetSecurityIntegrationTests {
 
         token = jwtService.generateToken(user);
         when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
+        when(datasetQualityScoreRepository.save(any(DatasetQualityScore.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -194,6 +211,92 @@ class DatasetSecurityIntegrationTests {
                 .andExpect(jsonPath("$.columns[0].columnName").value("name"))
                 .andExpect(jsonPath("$.columns[0].inferredDataType").value("TEXT"))
                 .andExpect(jsonPath("$.columns[0].mostCommonValues[0].value").value("Ada"));
+    }
+
+    @Test
+    void authenticatedQualityWithJwtReturnsOnlyOwnedDatasetQuality() throws Exception {
+        Dataset dataset = dataset();
+        DatasetQualityScore qualityScore = new DatasetQualityScore(
+                dataset,
+                98.5,
+                "[{\"type\":\"POSSIBLE_IDENTIFIER_COLUMN\",\"message\":\"Column values are nearly all unique and may represent an identifier\"}]",
+                Instant.parse("2026-05-11T13:00:00Z")
+        );
+        qualityScore.addColumnScore(new DatasetColumnQualityScore(
+                qualityScore,
+                new ColumnQualityResult(
+                        "id",
+                        0,
+                        98.5,
+                        0.0,
+                        100.0,
+                        0.0,
+                        100.0,
+                        List.of(new QualityIssueSummary(
+                                QualityIssueType.POSSIBLE_IDENTIFIER_COLUMN,
+                                "Column values are nearly all unique and may represent an identifier"
+                        ))
+                ),
+                "[{\"type\":\"POSSIBLE_IDENTIFIER_COLUMN\",\"message\":\"Column values are nearly all unique and may represent an identifier\"}]"
+        ));
+
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetQualityScoreRepository.findByDataset(dataset)).thenReturn(Optional.of(qualityScore));
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/quality", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dataset.id").value(dataset.getId().toString()))
+                .andExpect(jsonPath("$.overallScore").value(98.5))
+                .andExpect(jsonPath("$.issueSummaries[0].type").value("POSSIBLE_IDENTIFIER_COLUMN"))
+                .andExpect(jsonPath("$.columns[0].columnName").value("id"));
+    }
+
+    @Test
+    void authenticatedInsightsWithJwtReturnsOnlyOwnedDatasetInsights() throws Exception {
+        Dataset dataset = dataset();
+        DatasetAiInsight insight = new DatasetAiInsight(
+                dataset,
+                AiInsightGenerationStatus.GENERATED,
+                "llama3.1",
+                "Customer import data with identifiers and names.",
+                "[\"Possible identifier column\"]",
+                "[\"Analyze customer counts by status\"]",
+                "[\"Bar chart by status\"]",
+                null,
+                Instant.parse("2026-05-11T13:15:00Z")
+        );
+
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetAiInsightRepository.findByDataset(dataset)).thenReturn(Optional.of(insight));
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/insights", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dataset.id").value(dataset.getId().toString()))
+                .andExpect(jsonPath("$.generationStatus").value("GENERATED"))
+                .andExpect(jsonPath("$.datasetDescription").value("Customer import data with identifiers and names."))
+                .andExpect(jsonPath("$.potentialIssues[0]").value("Possible identifier column"));
+    }
+
+    @Test
+    void insightsRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/insights", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void qualityRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/quality", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
     }
 
     @Test
