@@ -1,6 +1,7 @@
 package com.dataforge.datasets;
 
 import com.dataforge.datasets.dto.DatasetUploadResponse;
+import com.dataforge.profiling.DatasetProfileService;
 import com.dataforge.users.User;
 import com.dataforge.users.UserRepository;
 import java.io.IOException;
@@ -23,6 +24,7 @@ public class DatasetUploadService {
     private final DatasetRepository datasetRepository;
     private final CsvPreviewParser csvPreviewParser;
     private final DatasetPreviewStorageService datasetPreviewStorageService;
+    private final DatasetProfileService datasetProfileService;
     private final DatasetUploadProperties uploadProperties;
     private final UserRepository userRepository;
 
@@ -30,12 +32,14 @@ public class DatasetUploadService {
             DatasetRepository datasetRepository,
             CsvPreviewParser csvPreviewParser,
             DatasetPreviewStorageService datasetPreviewStorageService,
+            DatasetProfileService datasetProfileService,
             DatasetUploadProperties uploadProperties,
             UserRepository userRepository
     ) {
         this.datasetRepository = datasetRepository;
         this.csvPreviewParser = csvPreviewParser;
         this.datasetPreviewStorageService = datasetPreviewStorageService;
+        this.datasetProfileService = datasetProfileService;
         this.uploadProperties = uploadProperties;
         this.userRepository = userRepository;
     }
@@ -80,6 +84,7 @@ public class DatasetUploadService {
         );
         dataset.updateParsedColumnCount(preview.columnNames().size());
         datasetPreviewStorageService.replacePreview(dataset, preview);
+        datasetProfileService.profileAndStore(dataset, preview);
 
         Dataset savedDataset = datasetRepository.save(dataset);
         return DatasetUploadResponse.from(savedDataset);

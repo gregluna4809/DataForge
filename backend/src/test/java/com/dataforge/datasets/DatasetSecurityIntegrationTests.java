@@ -9,6 +9,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.dataforge.security.JwtService;
+import com.dataforge.profiling.DatasetColumnProfile;
+import com.dataforge.profiling.DatasetColumnProfileRepository;
+import com.dataforge.profiling.ColumnProfileResult;
+import com.dataforge.profiling.InferredDataType;
+import com.dataforge.profiling.MostCommonValue;
 import com.dataforge.users.User;
 import com.dataforge.users.UserRepository;
 import java.time.Instant;
@@ -52,6 +57,9 @@ class DatasetSecurityIntegrationTests {
 
     @MockBean
     private DatasetPreviewRowRepository datasetPreviewRowRepository;
+
+    @MockBean
+    private DatasetColumnProfileRepository datasetColumnProfileRepository;
 
     @MockBean
     private UserRepository userRepository;
@@ -156,6 +164,46 @@ class DatasetSecurityIntegrationTests {
                 .andExpect(jsonPath("$.dataset.id").value(dataset.getId().toString()))
                 .andExpect(jsonPath("$.columnNames[0]").value("id"))
                 .andExpect(jsonPath("$.rows[0][1]").value("Ada"));
+    }
+
+    @Test
+    void authenticatedProfileWithJwtReturnsOnlyOwnedDatasetProfile() throws Exception {
+        Dataset dataset = dataset();
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetColumnProfileRepository.findByDatasetOrderByColumnPositionAsc(dataset)).thenReturn(List.of(
+                new DatasetColumnProfile(
+                        dataset,
+                        new ColumnProfileResult(
+                                "name",
+                                1,
+                                0,
+                                1,
+                                1,
+                                InferredDataType.TEXT,
+                                List.of(new MostCommonValue("Ada", 1))
+                        ),
+                        "[{\"value\":\"Ada\",\"count\":1}]",
+                        Instant.parse("2026-05-11T12:45:00Z")
+                )
+        ));
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/profile", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dataset.id").value(dataset.getId().toString()))
+                .andExpect(jsonPath("$.columns[0].columnName").value("name"))
+                .andExpect(jsonPath("$.columns[0].inferredDataType").value("TEXT"))
+                .andExpect(jsonPath("$.columns[0].mostCommonValues[0].value").value("Ada"));
+    }
+
+    @Test
+    void profileRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/profile", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
     }
 
     @Test
