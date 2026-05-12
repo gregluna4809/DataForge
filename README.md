@@ -24,6 +24,7 @@ backend/
     common/
       health/
       protectedtest/
+    datasets/
     security/
     users/
   src/main/resources/
@@ -72,6 +73,13 @@ Authentication endpoints:
 POST http://localhost:8080/api/auth/register
 POST http://localhost:8080/api/auth/login
 GET  http://localhost:8080/api/protected
+```
+
+Dataset metadata endpoints:
+
+```text
+GET  http://localhost:8080/api/datasets
+POST http://localhost:8080/api/datasets
 ```
 
 Use the login or registration response token as:
