@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Database, FileText, Loader2, Plus, RefreshCw } from "lucide-react";
+import { AlertCircle, Database, Eye, FileText, Loader2, Plus, RefreshCw } from "lucide-react";
 import { createDataset, getDatasets } from "@/api/datasets";
 import { getApiErrorMessages } from "@/api/errors";
 import { Badge } from "@/components/ui/badge";
@@ -111,13 +111,14 @@ export function DatasetsPage() {
 
             {!datasetsQuery.isLoading && !datasetsQuery.isError && datasets.length > 0 ? (
               <div className="overflow-hidden rounded-lg border">
-                <div className="hidden grid-cols-[1.3fr_1.2fr_0.7fr_0.7fr_0.8fr_1fr] gap-4 border-b bg-muted px-4 py-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground lg:grid">
+                <div className="hidden grid-cols-[1.2fr_1.1fr_0.6fr_0.6fr_0.75fr_0.9fr_100px] gap-4 border-b bg-muted px-4 py-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground lg:grid">
                   <span>Dataset</span>
                   <span>Filename</span>
                   <span>Rows</span>
                   <span>Columns</span>
                   <span>File size</span>
                   <span>Uploaded</span>
+                  <span>Actions</span>
                 </div>
                 {datasets.map((dataset) => (
                   <DatasetRow key={dataset.id} dataset={dataset} />
@@ -246,7 +247,7 @@ export function DatasetsPage() {
 
 function DatasetRow({ dataset }: { dataset: Dataset }) {
   return (
-    <div className="grid gap-3 border-b bg-card px-4 py-4 last:border-b-0 lg:grid-cols-[1.3fr_1.2fr_0.7fr_0.7fr_0.8fr_1fr] lg:items-center">
+    <div className="grid gap-3 border-b bg-card px-4 py-4 last:border-b-0 lg:grid-cols-[1.2fr_1.1fr_0.6fr_0.6fr_0.75fr_0.9fr_100px] lg:items-center">
       <div>
         <Link className="font-medium text-foreground hover:text-primary" to={`/datasets/${dataset.id}`}>
           {dataset.name}
@@ -264,6 +265,12 @@ function DatasetRow({ dataset }: { dataset: Dataset }) {
       <MetadataValue label="Columns" value={formatNumber(dataset.columnCount)} />
       <MetadataValue label="File size" value={formatFileSize(dataset.fileSizeBytes)} />
       <MetadataValue label="Uploaded" value={formatDate(dataset.fileUploadedAt ?? dataset.uploadTimestamp)} />
+      <Button asChild variant="outline" size="sm">
+        <Link to={`/datasets/${dataset.id}`} aria-label={`Preview ${dataset.name}`}>
+          <Eye />
+          Preview
+        </Link>
+      </Button>
     </div>
   );
 }

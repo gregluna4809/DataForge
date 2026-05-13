@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Activity, AlertTriangle, Database, FileCheck2, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,14 @@ const activityItems = [
   "Quality scoring completed for revenue_export.csv",
   "AI insight snapshot cached for operations_metrics.csv",
   "Dataset ownership validation passed",
+];
+
+const pipelineSteps = [
+  { label: "Upload", href: "/upload", description: "Create metadata and upload a CSV file.", badge: "Available" },
+  { label: "Preview", href: "/datasets", description: "Open a dataset to inspect parsed preview rows.", badge: "Available" },
+  { label: "Profile", href: "/datasets", description: "Open a dataset to review column profile results.", badge: "Available" },
+  { label: "Quality", href: "/datasets", description: "Open a dataset to review quality scoring.", badge: "Available" },
+  { label: "Insights", href: "/datasets", description: "Open a dataset to review AI insight snapshots.", badge: "Available" },
 ];
 
 export function DashboardPage() {
@@ -61,17 +70,21 @@ export function DashboardPage() {
             <CardDescription>Frontend shell prepared for progressive endpoint integration.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {["Upload", "Preview", "Profile", "Quality", "Insights"].map((step, index) => (
-              <div key={step} className="flex items-center gap-4 rounded-lg border bg-background p-3">
+            {pipelineSteps.map((step, index) => (
+              <Link
+                key={step.label}
+                to={step.href}
+                className="flex cursor-pointer items-center gap-4 rounded-lg border bg-background p-3 transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary">
                   {index + 1}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">{step}</p>
-                  <p className="text-xs text-muted-foreground">Ready for focused API wiring in a later milestone.</p>
+                  <p className="text-sm font-medium">{step.label}</p>
+                  <p className="text-xs text-muted-foreground">{step.description}</p>
                 </div>
-                <Badge variant={index < 3 ? "default" : "secondary"}>{index < 3 ? "Available" : "Planned UI"}</Badge>
-              </div>
+                <Badge variant="default">{step.badge}</Badge>
+              </Link>
             ))}
           </CardContent>
         </Card>
