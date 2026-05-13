@@ -39,3 +39,77 @@ export type DatasetUploadResponse = {
   status: DatasetStatus;
   uploadedAt: string;
 };
+
+export type DatasetPreviewResponse = {
+  dataset: Dataset;
+  columnNames: string[];
+  rows: string[][];
+};
+
+export type InferredDataType = "UNKNOWN" | "BOOLEAN" | "INTEGER" | "DECIMAL" | "DATE" | "DATETIME" | "TEXT";
+
+export type MostCommonValue = {
+  value: string;
+  count: number;
+};
+
+export type ColumnProfile = {
+  columnName: string;
+  columnPosition: number;
+  nullCount: number;
+  nonNullCount: number;
+  uniqueCount: number;
+  inferredDataType: InferredDataType;
+  mostCommonValues: MostCommonValue[];
+};
+
+export type DatasetProfileResponse = {
+  dataset: Dataset;
+  columns: ColumnProfile[];
+};
+
+export type QualityIssueType =
+  | "HIGH_NULL_RATE"
+  | "POSSIBLE_IDENTIFIER_COLUMN"
+  | "LOW_UNIQUENESS"
+  | "EMPTY_COLUMN"
+  | "INFERRED_TEXT_TYPE"
+  | "UNKNOWN_TYPE";
+
+export type QualityIssueSummary = {
+  type: QualityIssueType;
+  message: string;
+};
+
+export type ColumnQuality = {
+  columnName: string;
+  columnPosition: number;
+  qualityScore: number;
+  nullPercentage: number;
+  uniquenessPercentage: number;
+  emptyPercentage: number;
+  typeConsistencyScore: number;
+  issueSummaries: QualityIssueSummary[];
+};
+
+export type DatasetQualityResponse = {
+  dataset: Dataset;
+  overallScore: number;
+  issueSummaries: QualityIssueSummary[];
+  scoredAt: string;
+  columns: ColumnQuality[];
+};
+
+export type AiInsightGenerationStatus = "GENERATED" | "UNAVAILABLE";
+
+export type DatasetAiInsightResponse = {
+  dataset: Dataset;
+  generationStatus: AiInsightGenerationStatus;
+  modelName: string;
+  datasetDescription: string;
+  potentialIssues: string[];
+  suggestedAnalyses: string[];
+  suggestedVisualizations: string[];
+  errorMessage: string | null;
+  generatedAt: string;
+};

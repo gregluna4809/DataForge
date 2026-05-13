@@ -1,82 +1,478 @@
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle, Brain, Database, FileText, Loader2, ShieldCheck, TableProperties } from "lucide-react";
+import {
+  getDatasetInsights,
+  getDatasetPreview,
+  getDatasetProfile,
+  getDatasetQuality,
+} from "@/api/datasets";
+import { getApiErrorMessages } from "@/api/errors";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-const columns = [
-  { name: "customer_id", type: "TEXT", nulls: "0%", uniqueness: "100%" },
-  { name: "monthly_spend", type: "DECIMAL", nulls: "2%", uniqueness: "84%" },
-  { name: "signup_date", type: "DATE", nulls: "0%", uniqueness: "76%" },
-  { name: "is_active", type: "BOOLEAN", nulls: "4%", uniqueness: "2%" },
-];
+import type {
+  ColumnProfile,
+  Dataset,
+  DatasetAiInsightResponse,
+  DatasetPreviewResponse,
+  DatasetProfileResponse,
+  DatasetQualityResponse,
+  DatasetStatus,
+  QualityIssueSummary,
+} from "@/types/datasets";
 
 export function DatasetDetailPage() {
   const { datasetId } = useParams();
+  const enabled = Boolean(datasetId);
+
+  const previewQuery = useQuery({
+    queryKey: ["datasets", datasetId, "preview"],
+    queryFn: () => getDatasetPreview(datasetId!),
+    enabled,
+  });
+
+  const profileQuery = useQuery({
+    queryKey: ["datasets", datasetId, "profile"],
+    queryFn: () => getDatasetProfile(datasetId!),
+    enabled,
+  });
+
+  const qualityQuery = useQuery({
+    queryKey: ["datasets", datasetId, "quality"],
+    queryFn: () => getDatasetQuality(datasetId!),
+    enabled,
+  });
+
+  const insightsQuery = useQuery({
+    queryKey: ["datasets", datasetId, "insights"],
+    queryFn: () => getDatasetInsights(datasetId!),
+    enabled,
+  });
+
+  const dataset = previewQuery.data?.dataset ?? profileQuery.data?.dataset ?? qualityQuery.data?.dataset ?? insightsQuery.data?.dataset;
+
+  if (!datasetId) {
+    return (
+      <SectionError title="Dataset not found" messages={["The route did not include a dataset identifier."]} />
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border bg-card p-6 shadow-panel">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-          <div>
-            <Badge variant="default">Dataset detail</Badge>
-            <h2 className="mt-4 text-2xl font-semibold tracking-normal">Customer Churn Export</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Shell view for dataset `{datasetId}`. Endpoint-specific preview, profile, quality, and insight wiring can be added incrementally.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-muted-foreground">Status</p>
-              <p className="mt-1 font-semibold">READY</p>
-            </div>
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-muted-foreground">Quality</p>
-              <p className="mt-1 font-semibold">94.2</p>
-            </div>
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-muted-foreground">Columns</p>
-              <p className="mt-1 font-semibold">4</p>
-            </div>
-          </div>
-        </div>
+      <MetadataSummary
+        dataset={dataset}
+        quality={qualityQuery.data}
+        loading={!dataset && (previewQuery.isLoading || profileQuery.isLoading || qualityQuery.isLoading || insightsQuery.isLoading)}
+      />
+
+      <section className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+        <PreviewSection query={previewQuery} />
+        <QualitySection query={qualityQuery} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Column profile summary</CardTitle>
-            <CardDescription>Static structure aligned to the backend profile response shape.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-hidden rounded-lg border">
-              {columns.map((column) => (
-                <div key={column.name} className="grid gap-3 border-b bg-card px-4 py-4 last:border-b-0 sm:grid-cols-4 sm:items-center">
-                  <p className="font-medium">{column.name}</p>
-                  <Badge variant="outline">{column.type}</Badge>
-                  <p className="text-sm text-muted-foreground">Nulls {column.nulls}</p>
-                  <p className="text-sm text-muted-foreground">Unique {column.uniqueness}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <ProfileSection query={profileQuery} />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Insight readiness</CardTitle>
-            <CardDescription>Prepared for cached AI insight snapshots without adding chat behavior.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-sm font-medium">Deterministic context</p>
-              <p className="mt-1 text-sm text-muted-foreground">Profile and quality results are available before insight generation.</p>
-            </div>
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-sm font-medium">Fallback behavior</p>
-              <p className="mt-1 text-sm text-muted-foreground">The backend can return unavailable status when Ollama is offline.</p>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+      <InsightsSection query={insightsQuery} />
     </div>
   );
 }
+
+function MetadataSummary({
+  dataset,
+  quality,
+  loading,
+}: {
+  dataset: Dataset | undefined;
+  quality: DatasetQualityResponse | undefined;
+  loading: boolean;
+}) {
+  if (loading) {
+    return <LoadingPanel title="Loading dataset" description="Fetching metadata and analysis snapshots." />;
+  }
+
+  if (!dataset) {
+    return (
+      <section className="rounded-lg border bg-card p-6 shadow-panel">
+        <Badge variant="secondary">Dataset detail</Badge>
+        <h2 className="mt-4 text-2xl font-semibold tracking-normal">Analysis unavailable</h2>
+        <p className="mt-2 text-sm text-muted-foreground">No dataset metadata has been returned yet.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border bg-card p-6 shadow-panel">
+      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+        <div>
+          <StatusBadge status={dataset.status} />
+          <h2 className="mt-4 text-2xl font-semibold tracking-normal">{dataset.name}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {dataset.description ?? "Dataset analysis generated from uploaded CSV preview, profile, quality, and AI insight endpoints."}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
+            <span>{dataset.originalFilename}</span>
+            <span>·</span>
+            <span>Owner {dataset.uploadedBy.email}</span>
+          </div>
+        </div>
+        <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryMetric label="Rows" value={formatNumber(dataset.rowCount)} />
+          <SummaryMetric label="Columns" value={formatNumber(dataset.columnCount)} />
+          <SummaryMetric label="File size" value={formatFileSize(dataset.fileSizeBytes)} />
+          <SummaryMetric label="Quality" value={quality ? quality.overallScore.toFixed(2) : "Pending"} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PreviewSection({ query }: { query: QueryState<DatasetPreviewResponse> }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <TableProperties className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle>Preview rows</CardTitle>
+            <CardDescription>First parsed CSV rows returned by `GET /preview`.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {query.isLoading ? <LoadingInline label="Loading preview" /> : null}
+        {query.isError ? <SectionError title="Preview unavailable" messages={getApiErrorMessages(query.error, "Preview rows could not be loaded.")} /> : null}
+        {query.data ? (
+          query.data.rows.length > 0 ? (
+            <PreviewTable preview={query.data} />
+          ) : (
+            <EmptyPanel title="No preview rows" description="The CSV header was parsed, but no preview data rows were returned." />
+          )
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PreviewTable({ preview }: { preview: DatasetPreviewResponse }) {
+  return (
+    <div className="overflow-auto rounded-lg border">
+      <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+        <thead className="bg-muted text-xs uppercase tracking-[0.14em] text-muted-foreground">
+          <tr>
+            {preview.columnNames.map((columnName, index) => (
+              <th key={`${columnName}-${index}`} className="border-b px-4 py-3 font-medium">
+                {columnName || `Column ${index + 1}`}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {preview.rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className="border-b last:border-b-0">
+              {preview.columnNames.map((_, columnIndex) => (
+                <td key={`${rowIndex}-${columnIndex}`} className="max-w-64 truncate px-4 py-3 text-muted-foreground">
+                  {row[columnIndex] || <span className="text-muted-foreground/60">Empty</span>}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function QualitySection({ query }: { query: QueryState<DatasetQualityResponse> }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle>Quality score</CardTitle>
+            <CardDescription>Dataset and column quality summaries.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {query.isLoading ? <LoadingInline label="Loading quality score" /> : null}
+        {query.isError ? <SectionError title="Quality unavailable" messages={getApiErrorMessages(query.error, "Quality results could not be loaded.")} /> : null}
+        {query.data ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-background p-5">
+              <p className="text-sm text-muted-foreground">Overall quality</p>
+              <div className="mt-2 flex items-end gap-2">
+                <p className="text-4xl font-semibold">{query.data.overallScore.toFixed(2)}</p>
+                <p className="pb-1 text-sm text-muted-foreground">/ 100</p>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Scored {formatDate(query.data.scoredAt)}</p>
+            </div>
+            <IssueList issues={query.data.issueSummaries} emptyText="No dataset-level quality issues were returned." />
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProfileSection({ query }: { query: QueryState<DatasetProfileResponse> }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Database className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle>Column profiles</CardTitle>
+            <CardDescription>Per-column type inference, null counts, uniqueness, and common values.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {query.isLoading ? <LoadingInline label="Loading profile results" /> : null}
+        {query.isError ? <SectionError title="Profile unavailable" messages={getApiErrorMessages(query.error, "Profile results could not be loaded.")} /> : null}
+        {query.data ? (
+          query.data.columns.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {query.data.columns.map((column) => (
+                <ColumnProfileCard key={`${column.columnName}-${column.columnPosition}`} column={column} />
+              ))}
+            </div>
+          ) : (
+            <EmptyPanel title="No column profiles" description="The backend did not return profile records for this dataset." />
+          )
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function InsightsSection({ query }: { query: QueryState<DatasetAiInsightResponse> }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Brain className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle>AI insights</CardTitle>
+            <CardDescription>Cached AI insight snapshot generated from deterministic analysis context.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {query.isLoading ? <LoadingInline label="Loading AI insights" /> : null}
+        {query.isError ? <SectionError title="Insights unavailable" messages={getApiErrorMessages(query.error, "AI insights could not be loaded.")} /> : null}
+        {query.data ? (
+          <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr_1fr]">
+            <div className="rounded-lg border bg-background p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-medium">Summary</p>
+                <Badge variant={query.data.generationStatus === "GENERATED" ? "default" : "warning"}>{query.data.generationStatus}</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{query.data.datasetDescription}</p>
+              <p className="mt-4 text-xs text-muted-foreground">
+                Model {query.data.modelName} · Generated {formatDate(query.data.generatedAt)}
+              </p>
+              {query.data.errorMessage ? <p className="mt-3 text-sm text-destructive">{query.data.errorMessage}</p> : null}
+            </div>
+            <InsightList title="Potential issues" items={query.data.potentialIssues} />
+            <div className="grid gap-4">
+              <InsightList title="Suggested analyses" items={query.data.suggestedAnalyses} />
+              <InsightList title="Suggested visualizations" items={query.data.suggestedVisualizations} />
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ColumnProfileCard({ column }: { column: ColumnProfile }) {
+  const total = column.nullCount + column.nonNullCount;
+  return (
+    <div className="rounded-lg border bg-background p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{column.columnName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Position {column.columnPosition + 1}</p>
+        </div>
+        <Badge variant="outline">{column.inferredDataType}</Badge>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+        <ProfileMetric label="Null" value={formatNumber(column.nullCount)} />
+        <ProfileMetric label="Non-null" value={formatNumber(column.nonNullCount)} />
+        <ProfileMetric label="Unique" value={formatNumber(column.uniqueCount)} />
+      </div>
+      <div className="mt-4">
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Common values</p>
+        <div className="mt-2 space-y-2">
+          {column.mostCommonValues.length > 0 ? (
+            column.mostCommonValues.map((item) => (
+              <div key={`${item.value}-${item.count}`} className="flex items-center justify-between gap-3 text-sm">
+                <span className="truncate text-muted-foreground">{item.value || "Empty"}</span>
+                <span className="font-medium">{item.count}</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No common values returned.</p>
+          )}
+        </div>
+      </div>
+      <p className="mt-4 text-xs text-muted-foreground">{formatNumber(total)} preview values evaluated</p>
+    </div>
+  );
+}
+
+function IssueList({ issues, emptyText }: { issues: QualityIssueSummary[]; emptyText: string }) {
+  if (issues.length === 0) {
+    return <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">{emptyText}</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {issues.map((issue, index) => (
+        <div key={`${issue.type}-${index}`} className="rounded-lg border bg-background p-3">
+          <Badge variant="secondary">{issue.type.replace(/_/g, " ")}</Badge>
+          <p className="mt-2 text-sm text-muted-foreground">{issue.message}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InsightList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-lg border bg-background p-4">
+      <p className="font-medium">{title}</p>
+      {items.length > 0 ? (
+        <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+          {items.map((item) => (
+            <li key={item} className="flex gap-2">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">No items returned.</p>
+      )}
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-background p-4">
+      <p className="text-muted-foreground">{label}</p>
+      <p className="mt-1 font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function ProfileMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-card p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium">{value}</p>
+    </div>
+  );
+}
+
+function LoadingPanel({ title, description }: { title: string; description: string }) {
+  return (
+    <section className="flex min-h-40 items-center justify-center rounded-lg border bg-card p-6 shadow-panel">
+      <div className="text-center">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+        <p className="mt-3 font-medium">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+    </section>
+  );
+}
+
+function LoadingInline({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-32 items-center justify-center rounded-lg border bg-background">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function EmptyPanel({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-lg border border-dashed bg-background p-6 text-center">
+      <FileText className="mx-auto h-8 w-8 text-muted-foreground" />
+      <p className="mt-3 font-medium">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function SectionError({ title, messages }: { title: string; messages: string[] }) {
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-4 w-4" />
+        <div>
+          <p className="font-medium">{title}</p>
+          {messages.map((message) => (
+            <p key={message} className="mt-1">
+              {message}
+            </p>
+          ))}
+          <Button asChild className="mt-3" variant="outline" size="sm">
+            <Link to="/datasets">Back to datasets</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: DatasetStatus }) {
+  const variant = status === "READY" ? "default" : status === "FAILED" ? "warning" : status === "UPLOADED" ? "outline" : "secondary";
+  return <Badge variant={variant}>{status.replace(/_/g, " ")}</Badge>;
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat().format(value);
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes === 0) {
+    return "0 B";
+  }
+
+  const units = ["B", "KB", "MB", "GB"];
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** unitIndex;
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+type QueryState<T> = {
+  data?: T;
+  error: Error | null;
+  isError: boolean;
+  isLoading: boolean;
+};

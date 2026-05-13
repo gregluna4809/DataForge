@@ -1,6 +1,14 @@
 import { apiClient } from "@/api/client";
 import type { AxiosProgressEvent } from "axios";
-import type { CreateDatasetRequest, Dataset, DatasetUploadResponse } from "@/types/datasets";
+import type {
+  CreateDatasetRequest,
+  Dataset,
+  DatasetAiInsightResponse,
+  DatasetPreviewResponse,
+  DatasetProfileResponse,
+  DatasetQualityResponse,
+  DatasetUploadResponse,
+} from "@/types/datasets";
 
 export async function getDatasets() {
   const response = await apiClient.get<Dataset[]>("/api/datasets");
@@ -27,5 +35,25 @@ export async function uploadDatasetCsv(
     onUploadProgress,
   });
 
+  return response.data;
+}
+
+export async function getDatasetPreview(datasetId: string) {
+  const response = await apiClient.get<DatasetPreviewResponse>(`/api/datasets/${datasetId}/preview`);
+  return response.data;
+}
+
+export async function getDatasetProfile(datasetId: string) {
+  const response = await apiClient.get<DatasetProfileResponse>(`/api/datasets/${datasetId}/profile`);
+  return response.data;
+}
+
+export async function getDatasetQuality(datasetId: string) {
+  const response = await apiClient.get<DatasetQualityResponse>(`/api/datasets/${datasetId}/quality`);
+  return response.data;
+}
+
+export async function getDatasetInsights(datasetId: string) {
+  const response = await apiClient.get<DatasetAiInsightResponse>(`/api/datasets/${datasetId}/insights`);
   return response.data;
 }
