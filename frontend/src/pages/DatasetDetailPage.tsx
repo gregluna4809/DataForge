@@ -1,6 +1,20 @@
 import { Link, useParams } from "react-router-dom";
+import { type ReactNode, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Brain, Database, FileText, Loader2, ShieldCheck, TableProperties } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   getDatasetInsights,
   getDatasetPreview,
@@ -22,8 +36,11 @@ import type {
   QualityIssueSummary,
 } from "@/types/datasets";
 
+const CHART_COLORS = ["#28786f", "#f2a51a", "#475569", "#0f766e", "#dc2626", "#64748b", "#7c3aed"];
+
 export function DatasetDetailPage() {
   const { datasetId } = useParams();
+  const [selectedColumnPosition, setSelectedColumnPosition] = useState<number | null>(null);
   const enabled = Boolean(datasetId);
 
   const previewQuery = useQuery({
@@ -51,6 +68,14 @@ export function DatasetDetailPage() {
   });
 
   const dataset = previewQuery.data?.dataset ?? profileQuery.data?.dataset ?? qualityQuery.data?.dataset ?? insightsQuery.data?.dataset;
+  const selectedColumn = useMemo(() => {
+    const columns = profileQuery.data?.columns ?? [];
+    if (columns.length === 0) {
+      return null;
+    }
+
+    return columns.find((column) => column.columnPosition === selectedColumnPosition) ?? columns[0];
+  }, [profileQuery.data?.columns, selectedColumnPosition]);
 
   if (!datasetId) {
     return (
@@ -73,8 +98,176 @@ export function DatasetDetailPage() {
 
       <ProfileSection query={profileQuery} />
 
+      <VisualAnalyticsSection
+        profile={profileQuery.data}
+        quality={qualityQuery.data}
+        selectedColumn={selectedColumn}
+        selectedColumnPosition={selectedColumn?.columnPosition ?? null}
+        onSelectColumn={setSelectedColumnPosition}
+      />
+
       <InsightsSection query={insightsQuery} />
     </div>
+  );
+}
+
+function VisualAnalyticsSection({
+  profile,
+  quality,
+  selectedColumn,
+  selectedColumnPosition,
+  onSelectColumn,
+}: {
+  profile: DatasetProfileResponse | undefined;
+  quality: DatasetQualityResponse | undefined;
+  selectedColumn: ColumnProfile | null;
+  selectedColumnPosition: number | null;
+  onSelectColumn: (position: number) => void;
+}) {
+  const issueDistribution = useMemo(() => {
+    const issueCounts = new Map<string, number>();
+    for (const issue of quality?.issueSummaries ?? []) {
+      issueCounts.set(issue.type, (issueCounts.get(issue.type) ?? 0) + 1);
+    }
+
+    return Array.from(issueCounts.entries()).map(([name, value]) => ({
+      name: name.replace(/_/g, " "),
+      value,
+    }));
+  }, [quality?.issueSummaries]);
+
+  const typeBreakdown = useMemo(() => {
+    const typeCounts = new Map<string, number>();
+    for (const column of profile?.columns ?? []) {
+      typeCounts.set(column.inferredDataType, (typeCounts.get(column.inferredDataType) ?? 0) + 1);
+    }
+
+    return Array.from(typeCounts.entries()).map(([name, value]) => ({ name, value }));
+  }, [profile?.columns]);
+
+  const nullComparison = useMemo(
+    () =>
+      (profile?.columns ?? []).map((column) => ({
+        name: column.columnName,
+        nullCount: column.nullCount,
+        nonNullCount: column.nonNullCount,
+      })),
+    [profile?.columns],
+  );
+
+  const topValues = useMemo(
+    () =>
+      (selectedColumn?.mostCommonValues ?? []).map((item) => ({
+        value: item.value || "Empty",
+        count: item.count,
+      })),
+    [selectedColumn?.mostCommonValues],
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Visual analytics</CardTitle>
+        <CardDescription>Charts generated from profile and quality endpoint responses.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {!profile && !quality ? (
+          <EmptyPanel title="Charts unavailable" description="Profile or quality results are required before charts can be rendered." />
+        ) : null}
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ChartPanel title="Quality issue distribution" description="Dataset-level issue summary counts.">
+            {issueDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={issueDistribution} dataKey="value" nameKey="name" outerRadius={88} innerRadius={48} paddingAngle={3}>
+                    {issueDistribution.map((entry, index) => (
+                      <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmpty message="No quality issues returned." />
+            )}
+          </ChartPanel>
+
+          <ChartPanel title="Inferred data types" description="Column count by inferred backend data type.">
+            {typeBreakdown.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={typeBreakdown}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Columns" radius={[6, 6, 0, 0]} fill="#28786f" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmpty message="No column profile types returned." />
+            )}
+          </ChartPanel>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <ChartPanel title="Null vs non-null by column" description="Preview-value completeness by profiled column.">
+            {nullComparison.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={nullComparison} margin={{ left: 8, right: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} interval={0} angle={-20} textAnchor="end" height={70} />
+                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="nonNullCount" name="Non-null" stackId="values" fill="#28786f" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="nullCount" name="Null" stackId="values" fill="#f2a51a" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmpty message="No null/non-null profile data returned." />
+            )}
+          </ChartPanel>
+
+          <ChartPanel title="Top values" description="Most common values for the selected column.">
+            {profile?.columns && profile.columns.length > 0 ? (
+              <div className="mb-4">
+                <label className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground" htmlFor="top-values-column">
+                  Column
+                </label>
+                <select
+                  id="top-values-column"
+                  className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={selectedColumnPosition ?? profile.columns[0].columnPosition}
+                  onChange={(event) => onSelectColumn(Number(event.target.value))}
+                >
+                  {profile.columns.map((column) => (
+                    <option key={`${column.columnName}-${column.columnPosition}`} value={column.columnPosition}>
+                      {column.columnName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+
+            {topValues.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={topValues} layout="vertical" margin={{ left: 24, right: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis dataKey="value" type="category" tickLine={false} axisLine={false} fontSize={12} width={90} />
+                  <Tooltip />
+                  <Bar dataKey="count" name="Count" radius={[0, 6, 6, 0]} fill="#28786f" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmpty message="No common values returned for this column." />
+            )}
+          </ChartPanel>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -112,7 +305,7 @@ function MetadataSummary({
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
             <span>{dataset.originalFilename}</span>
-            <span>·</span>
+            <span>/</span>
             <span>Owner {dataset.uploadedBy.email}</span>
           </div>
         </div>
@@ -279,7 +472,7 @@ function InsightsSection({ query }: { query: QueryState<DatasetAiInsightResponse
               </div>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{query.data.datasetDescription}</p>
               <p className="mt-4 text-xs text-muted-foreground">
-                Model {query.data.modelName} · Generated {formatDate(query.data.generatedAt)}
+                Model {query.data.modelName} / Generated {formatDate(query.data.generatedAt)}
               </p>
               {query.data.errorMessage ? <p className="mt-3 text-sm text-destructive">{query.data.errorMessage}</p> : null}
             </div>
@@ -292,6 +485,34 @@ function InsightsSection({ query }: { query: QueryState<DatasetAiInsightResponse
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ChartPanel({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border bg-background p-4">
+      <div className="mb-4">
+        <p className="font-medium">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ChartEmpty({ message }: { message: string }) {
+  return (
+    <div className="flex h-64 items-center justify-center rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
+      {message}
+    </div>
   );
 }
 
