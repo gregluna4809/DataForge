@@ -9,6 +9,7 @@ import { DatasetsPage } from "@/pages/DatasetsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { UploadPage } from "@/pages/UploadPage";
 
 export function App() {
   return (
@@ -26,7 +27,7 @@ export function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/datasets" element={<DatasetsPage />} />
           <Route path="/datasets/:datasetId" element={<DatasetDetailPage />} />
-          <Route path="/upload" element={<DatasetsPage />} />
+          <Route path="/upload" element={<UploadPage />} />
           <Route path="/insights" element={<DashboardPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

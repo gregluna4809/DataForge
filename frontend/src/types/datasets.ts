@@ -29,3 +29,13 @@ export type CreateDatasetRequest = {
   columnCount: number;
   fileSizeBytes: number;
 };
+
+export type DatasetUploadResponse = {
+  datasetId: string;
+  originalFilename: string;
+  storedFilename: string;
+  fileSizeBytes: number;
+  contentType: string | null;
+  status: DatasetStatus;
+  uploadedAt: string;
+};
