@@ -182,6 +182,50 @@ class DatasetAiInsightServiceTests {
         assertThat(response.datasetDescription()).contains("AI insight generation is currently unavailable");
     }
 
+    @Test
+    void retriesGenerationWhenStoredInsightWasUnavailable() {
+        AiInsightContent previousFallback = new AiInsightContent(
+                "AI insight generation is currently unavailable. Deterministic metadata shows 2 preview columns and 1 preview rows.",
+                List.of("No stored quality issues were available for summary."),
+                List.of("Review column profiles and quality scores once AI insight generation is available."),
+                List.of("Use a table preview and quality score breakdown until AI suggestions can be generated.")
+        );
+        DatasetAiInsight unavailableInsight = generatedInsight(
+                previousFallback,
+                AiInsightGenerationStatus.UNAVAILABLE,
+                "Previous Ollama failure"
+        );
+        AiInsightContent generatedContent = new AiInsightContent(
+                "Fresh AI insight generated after Ollama became available.",
+                List.of("Potential quality issue"),
+                List.of("Review completeness by column"),
+                List.of("Null-rate table")
+        );
+        DatasetAiInsight generatedInsight = generatedInsight(generatedContent, AiInsightGenerationStatus.GENERATED, null);
+
+        when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
+        when(datasetRepository.findByIdAndUploadedBy(DATASET_ID, user)).thenReturn(Optional.of(dataset));
+        when(storageService.insight(dataset)).thenReturn(Optional.of(unavailableInsight));
+        arrangeContext();
+        when(promptBuilder.build(any(AiInsightContext.class))).thenReturn("structured prompt");
+        when(ollamaInsightClient.generate("structured prompt")).thenReturn(generatedContent);
+        when(ollamaInsightClient.modelName()).thenReturn("llama3.1");
+        when(storageService.replaceInsight(
+                eq(dataset),
+                eq(AiInsightGenerationStatus.GENERATED),
+                eq("llama3.1"),
+                eq(generatedContent),
+                eq(null)
+        )).thenReturn(generatedInsight);
+        arrangeStoredJsonReads(generatedContent);
+
+        var response = service.getInsights(USER_EMAIL, DATASET_ID);
+
+        assertThat(response.generationStatus()).isEqualTo(AiInsightGenerationStatus.GENERATED);
+        assertThat(response.datasetDescription()).isEqualTo("Fresh AI insight generated after Ollama became available.");
+        verify(ollamaInsightClient).generate("structured prompt");
+    }
+
     private void arrangeOwnedDataset() {
         when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
         when(datasetRepository.findByIdAndUploadedBy(DATASET_ID, user)).thenReturn(Optional.of(dataset));

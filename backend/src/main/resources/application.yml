@@ -37,7 +37,7 @@ dataforge:
   ai:
     ollama:
       endpoint: ${DATAFORGE_OLLAMA_ENDPOINT:http://localhost:11434}
-      model: ${DATAFORGE_OLLAMA_MODEL:llama3.1}
+      model: ${DATAFORGE_OLLAMA_MODEL:llama3:latest}
       timeout-seconds: ${DATAFORGE_OLLAMA_TIMEOUT_SECONDS:10}
 
 server:

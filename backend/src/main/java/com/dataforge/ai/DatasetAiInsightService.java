@@ -66,6 +66,7 @@ public class DatasetAiInsightService {
                 .orElseThrow(() -> new DatasetNotFoundException(datasetId));
 
         DatasetAiInsight insight = storageService.insight(dataset)
+                .filter(storedInsight -> storedInsight.getGenerationStatus() == AiInsightGenerationStatus.GENERATED)
                 .orElseGet(() -> generateAndStore(dataset));
 
         return toResponse(dataset, insight);

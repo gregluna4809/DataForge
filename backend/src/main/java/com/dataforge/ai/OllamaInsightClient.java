@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.ClientHttpRequestFactories;
 import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.http.MediaType;
@@ -13,6 +15,8 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 public class OllamaInsightClient {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(OllamaInsightClient.class);
 
     private final OllamaProperties properties;
     private final ObjectMapper objectMapper;
@@ -47,16 +51,49 @@ public class OllamaInsightClient {
                 throw new AiInsightGenerationException("Ollama returned an empty response");
             }
 
-            return objectMapper.readValue(response.response(), AiInsightContent.class);
+            return parseInsightContent(response.response());
         } catch (RestClientException exception) {
-            throw new AiInsightGenerationException("Ollama is unavailable", exception);
+            String message = "Ollama request failed for model "
+                    + properties.model()
+                    + " at "
+                    + properties.endpoint()
+                    + ": "
+                    + exception.getMessage();
+            LOGGER.warn(message);
+            throw new AiInsightGenerationException(message, exception);
         } catch (JsonProcessingException exception) {
-            throw new AiInsightGenerationException("Ollama returned invalid insight JSON", exception);
+            String message = "Ollama returned invalid insight JSON: " + exception.getOriginalMessage();
+            LOGGER.warn(message);
+            throw new AiInsightGenerationException(message, exception);
         }
     }
 
     public String modelName() {
         return properties.model();
+    }
+
+    private AiInsightContent parseInsightContent(String responseText) throws JsonProcessingException {
+        String trimmed = responseText.trim();
+        try {
+            return objectMapper.readValue(trimmed, AiInsightContent.class);
+        } catch (JsonProcessingException exception) {
+            String extractedJson = extractJsonObject(trimmed);
+            if (extractedJson == null || extractedJson.equals(trimmed)) {
+                throw exception;
+            }
+
+            return objectMapper.readValue(extractedJson, AiInsightContent.class);
+        }
+    }
+
+    private String extractJsonObject(String value) {
+        int start = value.indexOf('{');
+        int end = value.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return null;
+        }
+
+        return value.substring(start, end + 1);
     }
 
     private record OllamaGenerateResponse(String response) {

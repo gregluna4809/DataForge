@@ -1,0 +1,17 @@
+ Customer Name , Email Address , Order Date , Amount Paid , Status , Notes
+
+ Greg Luna , greg@test.com , 2026-05-01 , 199.99 , Paid , First order
+ greg luna , greg@test.com , 2026-05-01 , 199.99 , Paid , First order
+ Alice Smith , alice@test.com , 2026/05/02 ,  50.00 , PAID , Repeat customer
+ Bob Jones , bob@test.com , , 75.25 , Pending ,
+ Carol White , carol@test.com , 2026-05-04 , , Paid , Missing payment
+ , , , , ,
+ David King , david@test.com , 2026-05-05 , 120.00 , paid , lowercase status
+ Emily Stone , emily@test.com , 2026-05-06 , 89.50 , Paid , VIP
+ Emily Stone , emily@test.com , 2026-05-06 , 89.50 , Paid , VIP
+ Frank Hall , frank@test.com , 2026-05-07 , 300.00 , Refunded , trailing spaces    
+ Gina Reed , gina@test.com , 2026-05-08 , 45.00 , Paid ,     
+ Henry Cole , henry@test.com , invalid-date , 60.00 , Paid , bad date
+ Ivy Long , ivy@test.com , 2026-05-09 , abc , Paid , invalid amount
+ Jack Frost , jack@test.com , 2026-05-10 , 10.00 , Paid , duplicate candidate
+ Jack Frost , jack@test.com , 2026-05-10 , 10.00 , Paid , duplicate candidate
