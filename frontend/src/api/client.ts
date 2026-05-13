@@ -1,8 +1,11 @@
 import axios from "axios";
 import { authStorage } from "@/context/authStorage";
 
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const apiBaseUrl = import.meta.env.DEV ? "" : configuredBaseUrl ?? "";
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080",
+  baseURL: apiBaseUrl,
   headers: {
     "Content-Type": "application/json",
   },
