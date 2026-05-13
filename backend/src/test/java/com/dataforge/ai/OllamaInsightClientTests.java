@@ -45,6 +45,7 @@ class OllamaInsightClientTests {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/generate", exchange -> {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            assertThat(exchange.getRequestHeaders().getFirst("Accept")).contains("application/json");
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, responseBody.length);
             exchange.getResponseBody().write(responseBody);
@@ -68,6 +69,42 @@ class OllamaInsightClientTests {
         assertThat(requestJson.get("model").asText()).isEqualTo("llama3:latest");
         assertThat(requestJson.get("prompt").asText()).isEqualTo("structured prompt");
         assertThat(requestJson.get("stream").asBoolean()).isFalse();
+    }
+
+    @Test
+    void parsesOllamaJsonWhenResponseContentTypeIsOctetStream() throws IOException {
+        String insightJson = objectMapper.writeValueAsString(Map.of(
+                "datasetDescription", "Octet stream response was parsed.",
+                "potentialIssues", List.of("Large generated payload"),
+                "suggestedAnalyses", List.of("Inspect AI insight persistence"),
+                "suggestedVisualizations", List.of("Insight summary panel")
+        ));
+        byte[] responseBody = objectMapper.writeValueAsBytes(Map.of(
+                "model", "llama3:latest",
+                "response", insightJson,
+                "done", true
+        ));
+
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/generate", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            assertThat(exchange.getRequestHeaders().getFirst("Accept")).contains("application/json");
+            exchange.getResponseHeaders().set("Content-Type", "application/octet-stream");
+            exchange.sendResponseHeaders(200, responseBody.length);
+            exchange.getResponseBody().write(responseBody);
+            exchange.close();
+        });
+        server.start();
+
+        OllamaInsightClient client = new OllamaInsightClient(
+                new OllamaProperties("http://localhost:" + server.getAddress().getPort(), "llama3:latest", 5),
+                objectMapper
+        );
+
+        AiInsightContent content = client.generate("structured prompt");
+
+        assertThat(content.datasetDescription()).isEqualTo("Octet stream response was parsed.");
+        assertThat(content.potentialIssues()).containsExactly("Large generated payload");
     }
 
     @Test

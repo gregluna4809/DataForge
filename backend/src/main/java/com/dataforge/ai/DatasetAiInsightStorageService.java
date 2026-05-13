@@ -37,18 +37,37 @@ public class DatasetAiInsightStorageService {
             AiInsightContent content,
             String errorMessage
     ) {
-        datasetAiInsightRepository.deleteByDataset(dataset);
-        DatasetAiInsight insight = new DatasetAiInsight(
-                dataset,
-                status,
-                modelName,
-                normalize(content.datasetDescription()),
-                writeStrings(content.potentialIssues()),
-                writeStrings(content.suggestedAnalyses()),
-                writeStrings(content.suggestedVisualizations()),
-                errorMessage,
-                Instant.now()
-        );
+        String datasetDescription = normalize(content.datasetDescription());
+        String potentialIssuesJson = writeStrings(content.potentialIssues());
+        String suggestedAnalysesJson = writeStrings(content.suggestedAnalyses());
+        String suggestedVisualizationsJson = writeStrings(content.suggestedVisualizations());
+        Instant generatedAt = Instant.now();
+
+        DatasetAiInsight insight = datasetAiInsightRepository.findByDataset(dataset)
+                .map(existingInsight -> {
+                    existingInsight.update(
+                            status,
+                            modelName,
+                            datasetDescription,
+                            potentialIssuesJson,
+                            suggestedAnalysesJson,
+                            suggestedVisualizationsJson,
+                            errorMessage,
+                            generatedAt
+                    );
+                    return existingInsight;
+                })
+                .orElseGet(() -> new DatasetAiInsight(
+                        dataset,
+                        status,
+                        modelName,
+                        datasetDescription,
+                        potentialIssuesJson,
+                        suggestedAnalysesJson,
+                        suggestedVisualizationsJson,
+                        errorMessage,
+                        generatedAt
+                ));
         return datasetAiInsightRepository.save(insight);
     }
 

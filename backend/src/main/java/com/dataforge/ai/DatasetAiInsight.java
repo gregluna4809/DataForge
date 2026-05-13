@@ -77,6 +77,26 @@ public class DatasetAiInsight {
         this.generatedAt = generatedAt;
     }
 
+    public void update(
+            AiInsightGenerationStatus generationStatus,
+            String modelName,
+            String datasetDescription,
+            String potentialIssuesJson,
+            String suggestedAnalysesJson,
+            String suggestedVisualizationsJson,
+            String errorMessage,
+            Instant generatedAt
+    ) {
+        this.generationStatus = generationStatus;
+        this.modelName = modelName;
+        this.datasetDescription = datasetDescription;
+        this.potentialIssuesJson = potentialIssuesJson;
+        this.suggestedAnalysesJson = suggestedAnalysesJson;
+        this.suggestedVisualizationsJson = suggestedVisualizationsJson;
+        this.errorMessage = errorMessage;
+        this.generatedAt = generatedAt;
+    }
+
     public AiInsightGenerationStatus getGenerationStatus() {
         return generationStatus;
     }
