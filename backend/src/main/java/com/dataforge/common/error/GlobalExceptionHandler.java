@@ -1,6 +1,8 @@
 package com.dataforge.common.error;
 
 import com.dataforge.auth.DuplicateEmailException;
+import com.dataforge.cleaning.DatasetCleaningException;
+import com.dataforge.cleaning.DatasetCleaningReportNotFoundException;
 import com.dataforge.datasets.AuthenticatedUserNotFoundException;
 import com.dataforge.datasets.DatasetNotFoundException;
 import com.dataforge.datasets.FileUploadException;
@@ -70,6 +72,22 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return buildResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(DatasetCleaningException.class)
+    public ResponseEntity<ApiErrorResponse> handleDatasetCleaning(
+            DatasetCleaningException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(DatasetCleaningReportNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleDatasetCleaningReportNotFound(
+            DatasetCleaningReportNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

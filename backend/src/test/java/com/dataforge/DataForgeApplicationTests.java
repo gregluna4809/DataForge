@@ -5,6 +5,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 import com.dataforge.ai.DatasetAiInsightRepository;
+import com.dataforge.cleaning.DatasetCleaningReportRepository;
 import com.dataforge.datasets.DatasetRepository;
 import com.dataforge.datasets.DatasetColumnRepository;
 import com.dataforge.datasets.DatasetPreviewRowRepository;
@@ -39,6 +40,9 @@ class DataForgeApplicationTests {
 
     @MockBean
     private DatasetAiInsightRepository datasetAiInsightRepository;
+
+    @MockBean
+    private DatasetCleaningReportRepository datasetCleaningReportRepository;
 
     @Test
     void contextLoads() {

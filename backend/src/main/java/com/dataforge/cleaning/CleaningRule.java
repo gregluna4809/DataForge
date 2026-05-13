@@ -1,0 +1,9 @@
+package com.dataforge.cleaning;
+
+public enum CleaningRule {
+    TRIM_WHITESPACE,
+    NORMALIZE_BLANK_VALUES,
+    NORMALIZE_COLUMN_NAMES_TO_SNAKE_CASE,
+    REMOVE_FULLY_EMPTY_ROWS,
+    REMOVE_DUPLICATE_ROWS
+}

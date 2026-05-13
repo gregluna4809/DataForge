@@ -5,12 +5,17 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.dataforge.ai.AiInsightGenerationStatus;
 import com.dataforge.ai.DatasetAiInsight;
 import com.dataforge.ai.DatasetAiInsightRepository;
+import com.dataforge.cleaning.CleaningRule;
+import com.dataforge.cleaning.ColumnRename;
+import com.dataforge.cleaning.DatasetCleaningReport;
+import com.dataforge.cleaning.DatasetCleaningReportRepository;
 import com.dataforge.security.JwtService;
 import com.dataforge.profiling.DatasetColumnProfile;
 import com.dataforge.profiling.DatasetColumnProfileRepository;
@@ -25,6 +30,8 @@ import com.dataforge.quality.QualityIssueSummary;
 import com.dataforge.quality.QualityIssueType;
 import com.dataforge.users.User;
 import com.dataforge.users.UserRepository;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -77,6 +84,9 @@ class DatasetSecurityIntegrationTests {
     private DatasetAiInsightRepository datasetAiInsightRepository;
 
     @MockBean
+    private DatasetCleaningReportRepository datasetCleaningReportRepository;
+
+    @MockBean
     private UserRepository userRepository;
 
     private User user;
@@ -97,6 +107,8 @@ class DatasetSecurityIntegrationTests {
         token = jwtService.generateToken(user);
         when(userRepository.findByEmail(USER_EMAIL)).thenReturn(Optional.of(user));
         when(datasetQualityScoreRepository.save(any(DatasetQualityScore.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(datasetCleaningReportRepository.save(any(DatasetCleaningReport.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -280,11 +292,112 @@ class DatasetSecurityIntegrationTests {
     }
 
     @Test
+    void authenticatedCleanWithJwtReturnsOnlyOwnedDatasetCleaningReport() throws Exception {
+        Dataset dataset = dataset();
+        Path uploadPath = Path.of("target/test-uploads/security-clean-source.csv").toAbsolutePath().normalize();
+        Files.createDirectories(uploadPath.getParent());
+        Files.writeString(uploadPath, "Customer ID,Name\n 1 , Ada \n1,Ada\n,\n");
+        dataset.markUploaded(
+                "customers.csv",
+                "security-clean-source.csv",
+                uploadPath.toString(),
+                "text/csv",
+                Files.size(uploadPath),
+                Instant.parse("2026-05-11T13:30:00Z")
+        );
+
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+
+        mockMvc.perform(post("/api/datasets/{datasetId}/clean", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dataset.id").value(dataset.getId().toString()))
+                .andExpect(jsonPath("$.rowsRead").value(3))
+                .andExpect(jsonPath("$.rowsWritten").value(1))
+                .andExpect(jsonPath("$.duplicateRowsRemoved").value(1))
+                .andExpect(jsonPath("$.emptyRowsRemoved").value(1))
+                .andExpect(jsonPath("$.columnsRenamed[0].cleanedName").value("customer_id"));
+    }
+
+    @Test
+    void authenticatedCleaningReportWithJwtReturnsOnlyOwnedDatasetReport() throws Exception {
+        Dataset dataset = dataset();
+        DatasetCleaningReport report = cleaningReport(dataset);
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetCleaningReportRepository.findByDataset(dataset)).thenReturn(Optional.of(report));
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/cleaning-report", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dataset.id").value(dataset.getId().toString()))
+                .andExpect(jsonPath("$.cleanedFilename").value("customers-cleaned.csv"))
+                .andExpect(jsonPath("$.cleaningRulesApplied[0]").value("TRIM_WHITESPACE"));
+    }
+
+    @Test
+    void authenticatedDownloadCleanedWithJwtReturnsOnlyOwnedCleanedCsv() throws Exception {
+        Dataset dataset = dataset();
+        Path cleanedPath = Path.of("target/test-uploads/security-cleaned.csv").toAbsolutePath().normalize();
+        Files.createDirectories(cleanedPath.getParent());
+        Files.writeString(cleanedPath, "customer_id,name\n1,Ada\n");
+        DatasetCleaningReport report = new DatasetCleaningReport(
+                dataset,
+                "customers-cleaned.csv",
+                cleanedPath.toString(),
+                Files.size(cleanedPath),
+                1,
+                1,
+                0,
+                0,
+                "[]",
+                "[\"TRIM_WHITESPACE\"]",
+                Instant.parse("2026-05-11T14:00:00Z")
+        );
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetCleaningReportRepository.findByDataset(dataset)).thenReturn(Optional.of(report));
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/download-cleaned", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"customers-cleaned.csv\""));
+    }
+
+    @Test
     void insightsRejectsDatasetOwnedByAnotherUser() throws Exception {
         UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
         when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/datasets/{datasetId}/insights", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void cleanRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/api/datasets/{datasetId}/clean", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void cleaningReportRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/cleaning-report", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void downloadCleanedRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/datasets/{datasetId}/download-cleaned", datasetId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
     }
@@ -358,5 +471,21 @@ class DatasetSecurityIntegrationTests {
         );
         ReflectionTestUtils.setField(dataset, "id", UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55"));
         return dataset;
+    }
+
+    private DatasetCleaningReport cleaningReport(Dataset dataset) {
+        return new DatasetCleaningReport(
+                dataset,
+                "customers-cleaned.csv",
+                "target/test-uploads/customers-cleaned.csv",
+                512,
+                4,
+                2,
+                1,
+                1,
+                "[{\"originalName\":\"Customer ID\",\"cleanedName\":\"customer_id\"}]",
+                "[\"TRIM_WHITESPACE\",\"NORMALIZE_BLANK_VALUES\",\"NORMALIZE_COLUMN_NAMES_TO_SNAKE_CASE\",\"REMOVE_FULLY_EMPTY_ROWS\",\"REMOVE_DUPLICATE_ROWS\"]",
+                Instant.parse("2026-05-11T14:00:00Z")
+        );
     }
 }
