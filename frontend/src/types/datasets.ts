@@ -113,3 +113,33 @@ export type DatasetAiInsightResponse = {
   errorMessage: string | null;
   generatedAt: string;
 };
+
+export type CleaningRule =
+  | "TRIM_WHITESPACE"
+  | "NORMALIZE_BLANK_VALUES"
+  | "NORMALIZE_COLUMN_NAMES_TO_SNAKE_CASE"
+  | "REMOVE_FULLY_EMPTY_ROWS"
+  | "REMOVE_DUPLICATE_ROWS";
+
+export type ColumnRename = {
+  originalName: string;
+  cleanedName: string;
+};
+
+export type DatasetCleaningReportResponse = {
+  dataset: Dataset;
+  cleanedFilename: string;
+  cleanedFileSizeBytes: number;
+  rowsRead: number;
+  rowsWritten: number;
+  duplicateRowsRemoved: number;
+  emptyRowsRemoved: number;
+  columnsRenamed: ColumnRename[];
+  cleaningRulesApplied: CleaningRule[];
+  cleanedAt: string;
+};
+
+export type CleanedDatasetDownload = {
+  blob: Blob;
+  filename: string;
+};

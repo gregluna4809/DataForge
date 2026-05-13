@@ -1,7 +1,18 @@
 import { Link, useParams } from "react-router-dom";
 import { type ReactNode, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Brain, Database, FileText, Loader2, ShieldCheck, TableProperties } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AxiosError } from "axios";
+import {
+  AlertCircle,
+  Brain,
+  CheckCircle2,
+  Database,
+  Download,
+  FileText,
+  Loader2,
+  ShieldCheck,
+  TableProperties,
+} from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -16,6 +27,9 @@ import {
   YAxis,
 } from "recharts";
 import {
+  cleanDataset,
+  downloadCleanedDataset,
+  getDatasetCleaningReport,
   getDatasetInsights,
   getDatasetPreview,
   getDatasetProfile,
@@ -29,6 +43,7 @@ import type {
   ColumnProfile,
   Dataset,
   DatasetAiInsightResponse,
+  DatasetCleaningReportResponse,
   DatasetPreviewResponse,
   DatasetProfileResponse,
   DatasetQualityResponse,
@@ -40,6 +55,7 @@ const CHART_COLORS = ["#28786f", "#f2a51a", "#475569", "#0f766e", "#dc2626", "#6
 
 export function DatasetDetailPage() {
   const { datasetId } = useParams();
+  const queryClient = useQueryClient();
   const [selectedColumnPosition, setSelectedColumnPosition] = useState<number | null>(null);
   const enabled = Boolean(datasetId);
 
@@ -67,7 +83,41 @@ export function DatasetDetailPage() {
     enabled,
   });
 
-  const dataset = previewQuery.data?.dataset ?? profileQuery.data?.dataset ?? qualityQuery.data?.dataset ?? insightsQuery.data?.dataset;
+  const cleaningReportQuery = useQuery({
+    queryKey: ["datasets", datasetId, "cleaning-report"],
+    queryFn: () => getDatasetCleaningReport(datasetId!),
+    enabled,
+    retry: false,
+  });
+
+  const cleanMutation = useMutation({
+    mutationFn: () => cleanDataset(datasetId!),
+    onSuccess: async (report) => {
+      queryClient.setQueryData(["datasets", datasetId, "cleaning-report"], report);
+      await queryClient.invalidateQueries({ queryKey: ["datasets"] });
+    },
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: () => downloadCleanedDataset(datasetId!),
+    onSuccess: ({ blob, filename }) => {
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    },
+  });
+
+  const dataset =
+    previewQuery.data?.dataset ??
+    profileQuery.data?.dataset ??
+    qualityQuery.data?.dataset ??
+    insightsQuery.data?.dataset ??
+    cleaningReportQuery.data?.dataset;
   const selectedColumn = useMemo(() => {
     const columns = profileQuery.data?.columns ?? [];
     if (columns.length === 0) {
@@ -89,6 +139,19 @@ export function DatasetDetailPage() {
         dataset={dataset}
         quality={qualityQuery.data}
         loading={!dataset && (previewQuery.isLoading || profileQuery.isLoading || qualityQuery.isLoading || insightsQuery.isLoading)}
+      />
+
+      <CleaningSection
+        report={cleaningReportQuery.data}
+        reportLoading={cleaningReportQuery.isLoading}
+        reportError={cleaningReportQuery.error}
+        cleanPending={cleanMutation.isPending}
+        cleanSuccess={cleanMutation.isSuccess}
+        cleanError={cleanMutation.error}
+        downloadPending={downloadMutation.isPending}
+        downloadError={downloadMutation.error}
+        onClean={() => cleanMutation.mutate()}
+        onDownload={() => downloadMutation.mutate()}
       />
 
       <section className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
@@ -317,6 +380,171 @@ function MetadataSummary({
         </div>
       </div>
     </section>
+  );
+}
+
+function CleaningSection({
+  report,
+  reportLoading,
+  reportError,
+  cleanPending,
+  cleanSuccess,
+  cleanError,
+  downloadPending,
+  downloadError,
+  onClean,
+  onDownload,
+}: {
+  report: DatasetCleaningReportResponse | undefined;
+  reportLoading: boolean;
+  reportError: Error | null;
+  cleanPending: boolean;
+  cleanSuccess: boolean;
+  cleanError: Error | null;
+  downloadPending: boolean;
+  downloadError: Error | null;
+  onClean: () => void;
+  onDownload: () => void;
+}) {
+  const reportMissing = reportError ? isNotFoundError(reportError) : false;
+  const hasCleanedFile = Boolean(report);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle>Deterministic cleaning</CardTitle>
+              <CardDescription>
+                Generate a cleaned CSV copy with whitespace trimming, normalized headers, empty-row removal, and duplicate-row removal.
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+            <Button onClick={onClean} disabled={cleanPending} className="gap-2">
+              {cleanPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {cleanPending ? "Cleaning" : "Clean Dataset"}
+            </Button>
+            <Button onClick={onDownload} disabled={!hasCleanedFile || downloadPending || cleanPending} variant="outline" className="gap-2">
+              {downloadPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download Cleaned CSV
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {cleanPending ? (
+          <div className="rounded-lg border bg-background p-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium">Cleaning job in progress</span>
+              <span className="text-muted-foreground">Creating cleaned CSV copy</span>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
+            </div>
+          </div>
+        ) : null}
+
+        {cleanSuccess ? (
+          <FeedbackPanel
+            tone="success"
+            title="Cleaned dataset is ready"
+            messages={["The cleaning report has been refreshed and the cleaned CSV is available for download."]}
+          />
+        ) : null}
+
+        {cleanError ? (
+          <FeedbackPanel
+            tone="error"
+            title="Cleaning failed"
+            messages={getApiErrorMessages(cleanError, "The backend could not clean this dataset.")}
+          />
+        ) : null}
+
+        {downloadError ? (
+          <FeedbackPanel
+            tone="error"
+            title="Download failed"
+            messages={getApiErrorMessages(downloadError, "The cleaned CSV could not be downloaded.")}
+          />
+        ) : null}
+
+        {reportLoading ? <LoadingInline label="Checking for existing cleaning report" /> : null}
+
+        {reportError && !reportMissing ? (
+          <FeedbackPanel
+            tone="error"
+            title="Cleaning report unavailable"
+            messages={getApiErrorMessages(reportError, "The cleaning report could not be loaded.")}
+          />
+        ) : null}
+
+        {!reportLoading && !report && (reportMissing || !reportError) ? (
+          <EmptyPanel
+            title="No cleaned file yet"
+            description="Run deterministic cleaning to generate a report and enable cleaned CSV download."
+          />
+        ) : null}
+
+        {report ? <CleaningReport report={report} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CleaningReport({ report }: { report: DatasetCleaningReportResponse }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <SummaryMetric label="Rows read" value={formatNumber(report.rowsRead)} />
+        <SummaryMetric label="Rows written" value={formatNumber(report.rowsWritten)} />
+        <SummaryMetric label="Duplicates removed" value={formatNumber(report.duplicateRowsRemoved)} />
+        <SummaryMetric label="Empty rows removed" value={formatNumber(report.emptyRowsRemoved)} />
+        <SummaryMetric label="Cleaned size" value={formatFileSize(report.cleanedFileSizeBytes)} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="rounded-lg border bg-background p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-medium">Columns renamed</p>
+            <Badge variant="secondary">{formatNumber(report.columnsRenamed.length)}</Badge>
+          </div>
+          {report.columnsRenamed.length > 0 ? (
+            <div className="mt-3 max-h-64 space-y-2 overflow-auto pr-1">
+              {report.columnsRenamed.map((column) => (
+                <div key={`${column.originalName}-${column.cleanedName}`} className="rounded-md border bg-card p-3 text-sm">
+                  <p className="truncate text-muted-foreground">{column.originalName || "Blank column"}</p>
+                  <p className="mt-1 truncate font-medium">{column.cleanedName}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">No column names required normalization.</p>
+          )}
+        </div>
+
+        <div className="rounded-lg border bg-background p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-medium">Cleaning rules applied</p>
+            <Badge variant="outline">Deterministic</Badge>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {report.cleaningRulesApplied.map((rule) => (
+              <div key={rule} className="rounded-md border bg-card p-3 text-sm">
+                <p className="font-medium">{formatEnumLabel(rule)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Cleaned {formatDate(report.cleanedAt)} / {report.cleanedFilename}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -640,6 +868,28 @@ function EmptyPanel({ title, description }: { title: string; description: string
   );
 }
 
+function FeedbackPanel({ tone, title, messages }: { tone: "success" | "error"; title: string; messages: string[] }) {
+  const toneClasses =
+    tone === "success" ? "border-primary/30 bg-primary/10 text-primary" : "border-destructive/30 bg-destructive/10 text-destructive";
+  const Icon = tone === "success" ? CheckCircle2 : AlertCircle;
+
+  return (
+    <div className={`rounded-lg border p-4 text-sm ${toneClasses}`}>
+      <div className="flex items-start gap-3">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-medium">{title}</p>
+          {messages.map((message) => (
+            <p key={message} className="mt-1">
+              {message}
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SectionError({ title, messages }: { title: string; messages: string[] }) {
   return (
     <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -680,6 +930,13 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatEnumLabel(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function formatFileSize(bytes: number) {
   if (bytes === 0) {
     return "0 B";
@@ -689,6 +946,10 @@ function formatFileSize(bytes: number) {
   const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / 1024 ** unitIndex;
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function isNotFoundError(error: Error) {
+  return error instanceof AxiosError && error.response?.status === 404;
 }
 
 type QueryState<T> = {
