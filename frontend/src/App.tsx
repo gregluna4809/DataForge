@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
+import { PublicOnlyRoute } from "@/routes/PublicOnlyRoute";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { DatasetDetailPage } from "@/pages/DatasetDetailPage";
 import { DatasetsPage } from "@/pages/DatasetsPage";
@@ -12,9 +13,11 @@ import { SettingsPage } from "@/pages/SettingsPage";
 export function App() {
   return (
     <Routes>
-      <Route element={<AuthLayout />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+      <Route element={<PublicOnlyRoute />}>
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+        </Route>
       </Route>
 
       <Route element={<ProtectedRoute />}>

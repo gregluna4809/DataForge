@@ -1,19 +1,19 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AxiosError } from "axios";
+import { Loader2 } from "lucide-react";
 import { register } from "@/api/auth";
+import { getApiErrorMessages } from "@/api/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import type { ApiErrorResponse } from "@/types/api";
 
 export function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const { setAuthenticatedSession } = useAuth();
   const navigate = useNavigate();
@@ -21,18 +21,14 @@ export function RegisterPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setErrors([]);
 
     try {
       const response = await register({ name, email, password });
       setAuthenticatedSession(response);
       navigate("/dashboard", { replace: true });
     } catch (requestError) {
-      const message =
-        requestError instanceof AxiosError
-          ? (requestError.response?.data as ApiErrorResponse | undefined)?.message
-          : null;
-      setError(message ?? "Unable to create the account.");
+      setErrors(getApiErrorMessages(requestError, "Unable to create the account."));
     } finally {
       setSubmitting(false);
     }
@@ -48,11 +44,26 @@ export function RegisterPage() {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="name"
+              autoComplete="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              disabled={submitting}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={submitting}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -62,11 +73,27 @@ export function RegisterPage() {
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              disabled={submitting}
+              required
+              minLength={8}
             />
           </div>
-          {error ? <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+          {errors.length > 0 ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {errors.map((message) => (
+                <p key={message}>{message}</p>
+              ))}
+            </div>
+          ) : null}
           <Button className="w-full" type="submit" disabled={submitting}>
-            {submitting ? "Creating account..." : "Create account"}
+            {submitting ? (
+              <>
+                <Loader2 className="animate-spin" />
+                Creating account...
+              </>
+            ) : (
+              "Create account"
+            )}
           </Button>
         </form>
         <p className="mt-5 text-center text-sm text-muted-foreground">

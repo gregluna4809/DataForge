@@ -1,18 +1,24 @@
 import { FormEvent, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AxiosError } from "axios";
+import { Loader2 } from "lucide-react";
 import { login } from "@/api/auth";
+import { getApiErrorMessages } from "@/api/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import type { ApiErrorResponse } from "@/types/api";
+
+type RedirectState = {
+  from?: {
+    pathname?: string;
+  };
+};
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const { setAuthenticatedSession } = useAuth();
   const navigate = useNavigate();
@@ -21,19 +27,15 @@ export function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setErrors([]);
 
     try {
       const response = await login({ email, password });
       setAuthenticatedSession(response);
-      const target = (location.state as { from?: Location } | null)?.from?.pathname ?? "/dashboard";
+      const target = (location.state as RedirectState | null)?.from?.pathname ?? "/dashboard";
       navigate(target, { replace: true });
     } catch (requestError) {
-      const message =
-        requestError instanceof AxiosError
-          ? (requestError.response?.data as ApiErrorResponse | undefined)?.message
-          : null;
-      setError(message ?? "Unable to sign in with those credentials.");
+      setErrors(getApiErrorMessages(requestError, "Unable to sign in with those credentials."));
     } finally {
       setSubmitting(false);
     }
@@ -49,7 +51,15 @@ export function LoginPage() {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={submitting}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -59,11 +69,26 @@ export function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              disabled={submitting}
+              required
             />
           </div>
-          {error ? <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
+          {errors.length > 0 ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {errors.map((message) => (
+                <p key={message}>{message}</p>
+              ))}
+            </div>
+          ) : null}
           <Button className="w-full" type="submit" disabled={submitting}>
-            {submitting ? "Signing in..." : "Sign in"}
+            {submitting ? (
+              <>
+                <Loader2 className="animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              "Sign in"
+            )}
           </Button>
         </form>
         <p className="mt-5 text-center text-sm text-muted-foreground">
