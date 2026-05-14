@@ -5,6 +5,7 @@ import type {
   CreateDatasetRequest,
   Dataset,
   DatasetAiInsightResponse,
+  DatasetChatResponse,
   DatasetCleaningReportResponse,
   DatasetPreviewResponse,
   DatasetProfileResponse,
@@ -79,6 +80,11 @@ export async function downloadCleanedDataset(datasetId: string): Promise<Cleaned
     blob: response.data,
     filename: getFilenameFromContentDisposition(response.headers["content-disposition"], "cleaned-dataset.csv"),
   };
+}
+
+export async function chatWithDataset(datasetId: string, message: string) {
+  const response = await apiClient.post<DatasetChatResponse>(`/api/datasets/${datasetId}/chat`, { message });
+  return response.data;
 }
 
 function getFilenameFromContentDisposition(value: unknown, fallback: string) {

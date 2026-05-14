@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.\\\\mvnw.cmd test *)"
+      "Bash(.\\\\mvnw.cmd test *)",
+      "Bash(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\gvl71\\\\OneDrive\\\\Desktop\\\\Projects\\\\DataForge\" -Directory)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(head *)",
+      "PowerShell(cd \"C:\\\\Users\\\\gvl71\\\\OneDrive\\\\Desktop\\\\Projects\\\\DataForge\\\\backend\"; $env:DATAFORGE_DB_PASSWORD=\"root123\"; .\\\\mvnw.cmd test 2>&1 | Select-Object -Last 80)",
+      "PowerShell(cd \"C:\\\\Users\\\\gvl71\\\\OneDrive\\\\Desktop\\\\Projects\\\\DataForge\\\\backend\"; $env:DATAFORGE_DB_PASSWORD=\"root123\"; .\\\\mvnw.cmd test \"-Dtest=DatasetChatControllerTests\" 2>&1 | Select-Object -Last 20)"
     ]
   }
 }

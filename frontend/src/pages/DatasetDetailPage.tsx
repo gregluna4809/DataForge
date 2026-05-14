@@ -10,6 +10,8 @@ import {
   Download,
   FileText,
   Loader2,
+  MessageSquare,
+  Send,
   ShieldCheck,
   TableProperties,
 } from "lucide-react";
@@ -27,6 +29,7 @@ import {
   YAxis,
 } from "recharts";
 import {
+  chatWithDataset,
   cleanDataset,
   downloadCleanedDataset,
   getDatasetCleaningReport,
@@ -170,7 +173,100 @@ export function DatasetDetailPage() {
       />
 
       <InsightsSection query={insightsQuery} />
+
+      <AnalystChatSection datasetId={datasetId} />
     </div>
+  );
+}
+
+const STARTER_PROMPTS = [
+  "Summarize this dataset",
+  "Why is quality low?",
+  "What anomalies do you see?",
+  "Suggest cleaning actions",
+];
+
+function AnalystChatSection({ datasetId }: { datasetId: string }) {
+  const [message, setMessage] = useState("");
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  const chatMutation = useMutation({
+    mutationFn: (msg: string) => chatWithDataset(datasetId, msg),
+    onSuccess: (data) => {
+      setAnswer(data.answer);
+      setChatError(null);
+    },
+    onError: (error) => {
+      setChatError(getApiErrorMessages(error as Error, "DataForge Analyst is temporarily unavailable.").join(" "));
+      setAnswer(null);
+    },
+  });
+
+  function handleSend() {
+    const trimmed = message.trim();
+    if (!trimmed || chatMutation.isPending) return;
+    chatMutation.mutate(trimmed);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <MessageSquare className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle>Ask DataForge Analyst</CardTitle>
+            <CardDescription>
+              Ask grounded questions about this dataset. Answers are based on stored metadata, preview rows, column profiles, and quality results.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {STARTER_PROMPTS.map((prompt) => (
+            <Button key={prompt} variant="outline" size="sm" onClick={() => setMessage(prompt)}>
+              {prompt}
+            </Button>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <textarea
+            className="min-h-[88px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Ask a question about this dataset…"
+            rows={3}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                handleSend();
+              }
+            }}
+          />
+          <div className="flex justify-end">
+            <Button onClick={handleSend} disabled={!message.trim() || chatMutation.isPending} className="gap-2">
+              {chatMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {chatMutation.isPending ? "Analyzing…" : "Send"}
+            </Button>
+          </div>
+        </div>
+
+        {chatError ? <FeedbackPanel tone="error" title="Analyst unavailable" messages={[chatError]} /> : null}
+
+        {answer ? (
+          <div className="rounded-lg border bg-background p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-medium">DataForge Analyst</p>
+              <Badge variant="secondary">Answer</Badge>
+            </div>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{answer}</p>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

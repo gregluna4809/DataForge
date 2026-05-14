@@ -143,3 +143,7 @@ export type CleanedDatasetDownload = {
   blob: Blob;
   filename: string;
 };
+
+export type DatasetChatResponse = {
+  answer: string;
+};

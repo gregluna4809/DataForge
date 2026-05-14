@@ -34,6 +34,24 @@ public class OllamaInsightClient {
 
     public AiInsightContent generate(String prompt) {
         try {
+            return parseInsightContent(sendRawResponse(prompt));
+        } catch (JsonProcessingException exception) {
+            String message = "Ollama returned invalid insight JSON: " + exception.getOriginalMessage();
+            LOGGER.warn(message);
+            throw new AiInsightGenerationException(message, exception);
+        }
+    }
+
+    public String generateText(String prompt) {
+        return sendRawResponse(prompt).trim();
+    }
+
+    public String modelName() {
+        return properties.model();
+    }
+
+    private String sendRawResponse(String prompt) {
+        try {
             String requestBody = objectMapper.writeValueAsString(Map.of(
                     "model", properties.model(),
                     "prompt", prompt,
@@ -56,9 +74,9 @@ public class OllamaInsightClient {
                 throw new AiInsightGenerationException("Ollama returned an empty response");
             }
 
-            return parseInsightContent(parseGenerateResponse(responseText).response());
+            return parseGenerateResponse(responseText).response();
         } catch (JsonProcessingException exception) {
-            String message = "Ollama returned invalid insight JSON: " + exception.getOriginalMessage();
+            String message = "Ollama returned an unreadable response: " + exception.getOriginalMessage();
             LOGGER.warn(message);
             throw new AiInsightGenerationException(message, exception);
         } catch (IOException | InterruptedException exception) {
@@ -74,10 +92,6 @@ public class OllamaInsightClient {
             LOGGER.warn(message);
             throw new AiInsightGenerationException(message, exception);
         }
-    }
-
-    public String modelName() {
-        return properties.model();
     }
 
     private AiInsightContent parseInsightContent(String responseText) throws JsonProcessingException {
