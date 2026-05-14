@@ -4,15 +4,16 @@
 
 DataForge aims to become:
 
-> A modern AI-assisted analytics and data quality platform that combines deterministic profiling with local AI interpretation.
+> A modern AI-assisted analytics and data quality platform combining deterministic profiling, rule-based quality enforcement, and local AI-assisted interpretation.
 
-The architecture emphasizes:
+Core architectural principles:
 
 - explainability
 - ownership security
 - deterministic analytics
 - modular engineering
-- AI augmentation instead of AI replacement
+- AI augmentation instead of blind AI autonomy
+- local-first privacy-aware AI integration
 
 ---
 
@@ -26,9 +27,9 @@ Completed:
 - PostgreSQL integration
 - Flyway migrations
 - JWT authentication
-- User ownership model
-- Structured API error handling
-- Integration tests
+- ownership-based dataset access control
+- structured API exception handling
+- integration and service testing
 
 ---
 
@@ -37,13 +38,13 @@ Completed:
 Completed:
 
 - CSV upload infrastructure
-- Local file storage
-- Multipart upload endpoint
+- multipart upload API
+- local file storage
+- UUID-safe stored filenames
 - CSV validation
-- UUID-safe filenames
 - CSV parsing
-- Preview extraction
-- Persistent preview storage
+- preview extraction
+- preview persistence
 
 ---
 
@@ -51,12 +52,12 @@ Completed:
 
 Completed:
 
-- Dataset profiling
-- Type inference
-- Null/non-null analysis
-- Unique value analysis
-- Most common value detection
-- Profile persistence
+- dataset profiling
+- column type inference
+- null/non-null analysis
+- uniqueness analysis
+- common value detection
+- profile persistence
 
 ---
 
@@ -64,102 +65,167 @@ Completed:
 
 Completed:
 
-- Dataset-level quality scoring
-- Column-level quality scoring
-- High null-rate detection
-- Low uniqueness detection
-- Empty column detection
-- Identifier-column detection
-- Quality issue summaries
+- dataset quality scoring
+- column-level quality scoring
+- high null-rate detection
+- low uniqueness detection
+- empty column detection
+- identifier heuristics
+- issue summaries
 
 ---
 
-## Phase 5 — AI Insight Layer ✅
+## Phase 5 — Frontend Analytics Platform ✅
 
 Completed:
 
-- Ollama integration
-- Structured prompt generation
-- AI-generated dataset summaries
-- Suggested analyses
-- Suggested visualizations
-- Cached AI insight persistence
-- Graceful unavailable fallback
-
----
-
-# Next Recommended Milestones
-
-## Phase 6 — Frontend Dashboard
-
-Planned:
-
 - React + TypeScript frontend
-- Authentication UI
-- Dataset upload interface
-- Dataset dashboard
-- Preview table UI
-- Profiling cards/charts
-- Quality score dashboard
+- JWT authentication UI
+- dataset registration/upload interface
+- dataset dashboard
+- dataset detail pages
+- preview table UI
+- profiling cards
+- quality score dashboard
+- Recharts visual analytics
 - AI insights panel
-- Responsive layout
+- responsive application shell
 
 ---
 
-## Phase 7 — Advanced Profiling
+## Phase 6 — Deterministic Cleaning Engine ✅
+
+Completed:
+
+- deterministic CSV cleaning pipeline
+- whitespace trimming
+- blank normalization
+- header normalization
+- snake_case header transformation
+- empty row removal
+- duplicate row removal
+- cleaned CSV generation
+- cleaning report persistence
+- cleaned CSV download
+- ownership-secured cleaning endpoints
+
+---
+
+## Phase 7 — AI Analytics Layer ✅
+
+Completed:
+
+- Ollama local AI integration
+- resilient Java HTTP client integration
+- model fallback handling
+- cached AI insight generation
+- graceful unavailable fallback
+- conversational dataset analyst chat
+- session-based conversational memory
+- grounded prompt construction
+- dataset-aware contextual Q&A
+
+---
+
+# Current Active Milestones
+
+## Phase 8 — Data Quality Intelligence Engine
 
 Planned:
 
-- Full-file profiling
-- Chunked processing
-- Streaming analytics
-- Duplicate detection
-- Outlier detection
-- Statistical summaries
-- Column correlations
-- Date/time inference
+- deterministic duplicate row detection
+- duplicate identifier detection
+- malformed email detection
+- invalid numeric detection
+- invalid date detection
+- boolean inconsistency detection
+- categorical inconsistency detection
+- structured issue classification
+- issue severity ranking
+
+Target API:
+
+```text
+GET /api/datasets/{id}/issues
+```
+
+Goal:
+
+Move issue detection from LLM inference into deterministic backend logic.
 
 ---
 
-## Phase 8 — AI Analytics Expansion
+## Phase 9 — AI-Assisted Data Operations
 
 Planned:
 
-- Natural-language querying
-- AI-generated chart recommendations
-- SQL generation
-- Data cleaning recommendations
-- Automated anomaly explanations
-- Conversational dataset analysis
+- AI issue-aware recommendations
+- categorical normalization suggestions
+- boolean cleanup proposals
+- date normalization suggestions
+- numeric coercion suggestions
+- transformation preview
+- one-click transformation execution
+
+Example workflow:
+
+```text
+Detected:
+Paid
+paid
+PAID
+PAid
+
+Suggested normalization:
+PAID
+
+Apply?
+```
 
 ---
 
-## Phase 9 — Enterprise Features
+## Phase 10 — Advanced Analytics
 
 Planned:
 
-- Async processing jobs
-- Upload processing queue
-- Progress tracking
-- Audit logging
-- Dataset versioning
-- Role-based access control
-- Cloud storage support
-- Multi-user collaboration
+- full-file profiling
+- chunked processing
+- streaming analytics
+- statistical summaries
+- outlier detection
+- column correlations
+- date/time intelligence
+- anomaly detection
+- trend analysis
 
 ---
 
-## Phase 10 — Deployment & Infrastructure
+## Phase 11 — Enterprise Platform Features
+
+Planned:
+
+- async processing jobs
+- progress tracking
+- audit logging
+- dataset versioning
+- role-based access control
+- cloud storage abstraction
+- multi-user collaboration
+- administrative observability
+
+---
+
+## Phase 12 — Deployment & Infrastructure
 
 Planned:
 
 - Docker support
-- Production deployment profiles
+- production deployment profiles
 - CI/CD pipeline
-- Monitoring & logging
-- Health dashboards
-- Cloud deployment
-- Reverse proxy setup
+- structured monitoring
+- application metrics
+- reverse proxy deployment
+- cloud deployment support
 
 ---
 
@@ -168,35 +234,35 @@ Planned:
 ```text
 JWT Authentication
     ↓
-Dataset Ownership
+Ownership Security Layer
     ↓
-CSV Upload Infrastructure
+CSV Upload / Storage Layer
     ↓
-Preview Parsing Layer
+Preview Extraction Layer
     ↓
 Profiling Engine
     ↓
 Quality Scoring Engine
     ↓
+Deterministic Cleaning Engine
+    ↓
 AI Insight Layer
+    ↓
+Conversational Dataset Analyst
 ```
 
 ---
 
 # Development Workflow
 
-Recommended workflow:
-
 ```text
-Prompt
-→ Agent implementation
-→ Human review
-→ Manual validation
-→ Commit stable milestone
-→ Next modular feature
+Architect feature
+→ implement modularly
+→ human validation
+→ deterministic verification
+→ commit stable milestone
+→ advance roadmap
 ```
-
-This project intentionally follows incremental architectural growth rather than large uncontrolled feature generation.
 
 ---
 
@@ -205,14 +271,15 @@ This project intentionally follows incremental architectural growth rather than 
 DataForge is intended to demonstrate:
 
 - backend engineering
+- frontend engineering
 - data engineering
 - AI-assisted analytics
 - enterprise architecture
-- modular software design
 - secure multi-user systems
-- deterministic analytics + AI augmentation
+- deterministic analytics + local AI augmentation
+- intelligent data quality operations
 
-The long-term vision is a portfolio-quality analytics platform suitable for:
+Portfolio positioning:
 
 - government technology
 - enterprise analytics
@@ -220,4 +287,3 @@ The long-term vision is a portfolio-quality analytics platform suitable for:
 - data quality engineering
 - analytics engineering
 - modern data platforms
-
