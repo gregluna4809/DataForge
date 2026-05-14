@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
+  ChatMessage,
   ColumnProfile,
   Dataset,
   DatasetAiInsightResponse,
@@ -186,87 +187,157 @@ const STARTER_PROMPTS = [
   "Suggest cleaning actions",
 ];
 
+const MAX_HISTORY = 10;
+
 function AnalystChatSection({ datasetId }: { datasetId: string }) {
-  const [message, setMessage] = useState("");
-  const [answer, setAnswer] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputMessage, setInputMessage] = useState("");
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
 
   const chatMutation = useMutation({
-    mutationFn: (msg: string) => chatWithDataset(datasetId, msg),
-    onSuccess: (data) => {
-      setAnswer(data.answer);
+    mutationFn: ({ msg, history }: { msg: string; history: ChatMessage[] }) =>
+      chatWithDataset(datasetId, msg, history),
+    onMutate: ({ msg }) => {
+      setPendingMessage(msg);
       setChatError(null);
     },
+    onSuccess: (data, { msg }) => {
+      setMessages((prev) => [
+        ...prev,
+        { role: "user", content: msg },
+        { role: "assistant", content: data.answer },
+      ]);
+      setPendingMessage(null);
+      setInputMessage("");
+    },
     onError: (error) => {
-      setChatError(getApiErrorMessages(error as Error, "DataForge Analyst is temporarily unavailable.").join(" "));
-      setAnswer(null);
+      setPendingMessage(null);
+      setChatError(
+        getApiErrorMessages(error as Error, "DataForge Analyst is temporarily unavailable.").join(" "),
+      );
     },
   });
 
   function handleSend() {
-    const trimmed = message.trim();
+    const trimmed = inputMessage.trim();
     if (!trimmed || chatMutation.isPending) return;
-    chatMutation.mutate(trimmed);
+    chatMutation.mutate({ msg: trimmed, history: messages.slice(-MAX_HISTORY) });
   }
+
+  function handleClear() {
+    setMessages([]);
+    setInputMessage("");
+    setChatError(null);
+    setPendingMessage(null);
+  }
+
+  const hasConversation = messages.length > 0 || pendingMessage !== null;
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <MessageSquare className="h-5 w-5" />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle>Ask DataForge Analyst</CardTitle>
+              <CardDescription>
+                Ask grounded questions about this dataset. Answers are based on stored metadata, preview rows, column
+                profiles, and quality results.
+              </CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle>Ask DataForge Analyst</CardTitle>
-            <CardDescription>
-              Ask grounded questions about this dataset. Answers are based on stored metadata, preview rows, column profiles, and quality results.
-            </CardDescription>
-          </div>
+          {hasConversation ? (
+            <Button variant="outline" size="sm" onClick={handleClear}>
+              Clear chat
+            </Button>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {STARTER_PROMPTS.map((prompt) => (
-            <Button key={prompt} variant="outline" size="sm" onClick={() => setMessage(prompt)}>
-              {prompt}
-            </Button>
-          ))}
-        </div>
+        {!hasConversation ? (
+          <div className="flex flex-wrap gap-2">
+            {STARTER_PROMPTS.map((prompt) => (
+              <Button key={prompt} variant="outline" size="sm" onClick={() => setInputMessage(prompt)}>
+                {prompt}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
+        {hasConversation ? (
+          <div className="space-y-3">
+            {messages.map((msg, index) => (
+              <ChatBubble key={index} role={msg.role} content={msg.content} />
+            ))}
+            {pendingMessage !== null ? (
+              <>
+                <ChatBubble role="user" content={pendingMessage} />
+                <ThinkingBubble />
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
+        {chatError ? <FeedbackPanel tone="error" title="Analyst unavailable" messages={[chatError]} /> : null}
 
         <div className="space-y-2">
           <textarea
-            className="min-h-[88px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-[88px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Ask a question about this dataset…"
             rows={3}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            value={inputMessage}
+            disabled={chatMutation.isPending}
+            onChange={(e) => setInputMessage(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                 handleSend();
               }
             }}
           />
-          <div className="flex justify-end">
-            <Button onClick={handleSend} disabled={!message.trim() || chatMutation.isPending} className="gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Ctrl+Enter to send</span>
+            <Button onClick={handleSend} disabled={!inputMessage.trim() || chatMutation.isPending} className="gap-2">
               {chatMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {chatMutation.isPending ? "Analyzing…" : "Send"}
             </Button>
           </div>
         </div>
-
-        {chatError ? <FeedbackPanel tone="error" title="Analyst unavailable" messages={[chatError]} /> : null}
-
-        {answer ? (
-          <div className="rounded-lg border bg-background p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-medium">DataForge Analyst</p>
-              <Badge variant="secondary">Answer</Badge>
-            </div>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{answer}</p>
-          </div>
-        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ChatBubble({ role, content }: { role: "user" | "assistant"; content: string }) {
+  const isUser = role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[82%] rounded-lg px-4 py-3 text-sm leading-6 ${
+          isUser ? "bg-primary/10 text-foreground" : "border bg-background text-muted-foreground"
+        }`}
+      >
+        {!isUser ? <p className="mb-1.5 text-xs font-medium text-primary">DataForge Analyst</p> : null}
+        <p className="whitespace-pre-wrap">{content}</p>
+      </div>
+    </div>
+  );
+}
+
+function ThinkingBubble() {
+  return (
+    <div className="flex justify-start">
+      <div className="rounded-lg border bg-background px-4 py-3 text-sm">
+        <p className="mb-1.5 text-xs font-medium text-primary">DataForge Analyst</p>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Analyzing…</span>
+        </div>
+      </div>
+    </div>
   );
 }
 

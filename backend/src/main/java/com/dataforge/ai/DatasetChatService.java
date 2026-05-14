@@ -1,5 +1,6 @@
 package com.dataforge.ai;
 
+import com.dataforge.ai.dto.ChatHistoryMessage;
 import com.dataforge.ai.dto.DatasetChatResponse;
 import com.dataforge.cleaning.DatasetCleaningReport;
 import com.dataforge.cleaning.DatasetCleaningStorageService;
@@ -57,7 +58,7 @@ public class DatasetChatService {
     }
 
     @Transactional(readOnly = true)
-    public DatasetChatResponse chat(String email, UUID datasetId, String message) {
+    public DatasetChatResponse chat(String email, UUID datasetId, String message, List<ChatHistoryMessage> history) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AuthenticatedUserNotFoundException(email));
         Dataset dataset = datasetRepository.findByIdAndUploadedBy(datasetId, user)
@@ -69,7 +70,8 @@ public class DatasetChatService {
         DatasetQualityScore qualityScore = datasetQualityStorageService.qualityScore(dataset).orElse(null);
         Optional<DatasetCleaningReport> cleaningReport = datasetCleaningStorageService.report(dataset);
 
-        String prompt = promptBuilder.build(dataset, columnNames, previewRows, profiles, qualityScore, cleaningReport, message);
+        String prompt = promptBuilder.build(
+                dataset, columnNames, previewRows, profiles, qualityScore, cleaningReport, history, message);
 
         try {
             String answer = ollamaInsightClient.generateText(prompt);

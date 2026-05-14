@@ -28,6 +28,7 @@ public class DatasetChatController {
             @PathVariable UUID datasetId,
             @Valid @RequestBody DatasetChatRequest request
     ) {
-        return ResponseEntity.ok(datasetChatService.chat(principal.getName(), datasetId, request.message()));
+        return ResponseEntity.ok(
+                datasetChatService.chat(principal.getName(), datasetId, request.message(), request.history()));
     }
 }

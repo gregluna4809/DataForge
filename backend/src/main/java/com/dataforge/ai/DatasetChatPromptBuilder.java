@@ -1,5 +1,6 @@
 package com.dataforge.ai;
 
+import com.dataforge.ai.dto.ChatHistoryMessage;
 import com.dataforge.cleaning.DatasetCleaningReport;
 import com.dataforge.datasets.Dataset;
 import com.dataforge.profiling.DatasetColumnProfile;
@@ -28,6 +29,7 @@ public class DatasetChatPromptBuilder {
             List<DatasetColumnProfile> profiles,
             DatasetQualityScore qualityScore,
             Optional<DatasetCleaningReport> cleaningReport,
+            List<ChatHistoryMessage> history,
             String userMessage
     ) {
         StringBuilder prompt = new StringBuilder();
@@ -56,6 +58,10 @@ public class DatasetChatPromptBuilder {
         }
 
         cleaningReport.ifPresent(report -> appendCleaningReport(prompt, report));
+
+        if (history != null && !history.isEmpty()) {
+            appendHistory(prompt, history);
+        }
 
         prompt.append("\nUser question: ").append(userMessage).append('\n');
         return prompt.toString();
@@ -115,5 +121,13 @@ public class DatasetChatPromptBuilder {
         prompt.append("- duplicateRowsRemoved: ").append(report.getDuplicateRowsRemoved()).append('\n');
         prompt.append("- emptyRowsRemoved: ").append(report.getEmptyRowsRemoved()).append('\n');
         prompt.append("- cleanedFilename: ").append(report.getCleanedFilename()).append("\n\n");
+    }
+
+    private void appendHistory(StringBuilder prompt, List<ChatHistoryMessage> history) {
+        prompt.append("Conversation history:\n");
+        for (ChatHistoryMessage entry : history) {
+            prompt.append(entry.role()).append(": ").append(entry.content()).append('\n');
+        }
+        prompt.append('\n');
     }
 }

@@ -1,6 +1,7 @@
 import { apiClient } from "@/api/client";
 import type { AxiosProgressEvent } from "axios";
 import type {
+  ChatMessage,
   CleanedDatasetDownload,
   CreateDatasetRequest,
   Dataset,
@@ -82,8 +83,11 @@ export async function downloadCleanedDataset(datasetId: string): Promise<Cleaned
   };
 }
 
-export async function chatWithDataset(datasetId: string, message: string) {
-  const response = await apiClient.post<DatasetChatResponse>(`/api/datasets/${datasetId}/chat`, { message });
+export async function chatWithDataset(datasetId: string, message: string, history: ChatMessage[]) {
+  const response = await apiClient.post<DatasetChatResponse>(`/api/datasets/${datasetId}/chat`, {
+    message,
+    history: history.length > 0 ? history : undefined,
+  });
   return response.data;
 }
 

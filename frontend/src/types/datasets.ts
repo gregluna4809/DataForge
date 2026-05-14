@@ -144,6 +144,11 @@ export type CleanedDatasetDownload = {
   filename: string;
 };
 
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type DatasetChatResponse = {
   answer: string;
 };
