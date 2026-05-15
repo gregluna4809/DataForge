@@ -16,3 +16,4 @@ backend/data/uploads/
 AGENTS.md
 GREG.md
 start-dev.ps1
+start-dev.bat
