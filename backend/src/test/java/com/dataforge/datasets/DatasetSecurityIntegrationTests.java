@@ -1,7 +1,9 @@
 package com.dataforge.datasets;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -449,6 +451,54 @@ class DatasetSecurityIntegrationTests {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Only .csv files are supported"));
+    }
+
+    @Test
+    void authenticatedDeleteDatasetWithJwtDeletesOwnedDataset() throws Exception {
+        Dataset dataset = dataset();
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetCleaningReportRepository.findByDataset(dataset)).thenReturn(Optional.empty());
+
+        mockMvc.perform(delete("/api/datasets/{datasetId}", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        verify(datasetRepository).delete(dataset);
+    }
+
+    @Test
+    void authenticatedDeleteDatasetCleansUpRelatedRecords() throws Exception {
+        Dataset dataset = dataset();
+        when(datasetRepository.findByIdAndUploadedBy(dataset.getId(), user)).thenReturn(Optional.of(dataset));
+        when(datasetCleaningReportRepository.findByDataset(dataset)).thenReturn(Optional.empty());
+
+        mockMvc.perform(delete("/api/datasets/{datasetId}", dataset.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        verify(datasetAiInsightRepository).deleteByDataset(dataset);
+        verify(datasetCleaningReportRepository).deleteByDataset(dataset);
+        verify(datasetQualityScoreRepository).deleteByDataset(dataset);
+        verify(datasetColumnProfileRepository).deleteByDataset(dataset);
+        verify(datasetPreviewRowRepository).deleteByDataset(dataset);
+        verify(datasetColumnRepository).deleteByDataset(dataset);
+    }
+
+    @Test
+    void deleteRejectsDatasetOwnedByAnotherUser() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        when(datasetRepository.findByIdAndUploadedBy(datasetId, user)).thenReturn(Optional.empty());
+
+        mockMvc.perform(delete("/api/datasets/{datasetId}", datasetId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void unauthenticatedDeleteIsRejected() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        mockMvc.perform(delete("/api/datasets/{datasetId}", datasetId))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

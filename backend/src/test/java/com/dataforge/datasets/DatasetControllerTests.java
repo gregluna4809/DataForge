@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -44,6 +45,9 @@ class DatasetControllerTests {
 
     @MockBean
     private DatasetUploadService datasetUploadService;
+
+    @MockBean
+    private DatasetDeletionService datasetDeletionService;
 
     @MockBean
     private JwtService jwtService;
@@ -111,6 +115,25 @@ class DatasetControllerTests {
                 .andExpect(jsonPath("$.rows[0][2]").value("first, customer"));
 
         verify(datasetPreviewService).getPreview(USER_EMAIL, dataset.id());
+    }
+
+    @Test
+    void authenticatedDeleteDatasetReturnsNoContent() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+
+        mockMvc.perform(delete("/api/datasets/{datasetId}", datasetId)
+                        .with(user(USER_EMAIL))
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+
+        verify(datasetDeletionService).deleteDataset(USER_EMAIL, datasetId);
+    }
+
+    @Test
+    void unauthenticatedDeleteDatasetIsRejected() throws Exception {
+        UUID datasetId = UUID.fromString("3a28a4a5-3137-4a67-a7d4-379cc1efbd55");
+        mockMvc.perform(delete("/api/datasets/{datasetId}", datasetId).with(csrf()))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
