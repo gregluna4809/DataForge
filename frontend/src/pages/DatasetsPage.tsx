@@ -1,8 +1,8 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Database, Eye, FileText, Loader2, Plus, RefreshCw } from "lucide-react";
-import { createDataset, getDatasets } from "@/api/datasets";
+import { AlertCircle, Database, Eye, FileText, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { createDataset, deleteDataset, getDatasets } from "@/api/datasets";
 import { getApiErrorMessages } from "@/api/errors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -111,7 +111,7 @@ export function DatasetsPage() {
 
             {!datasetsQuery.isLoading && !datasetsQuery.isError && datasets.length > 0 ? (
               <div className="overflow-hidden rounded-lg border">
-                <div className="hidden grid-cols-[1.2fr_1.1fr_0.6fr_0.6fr_0.75fr_0.9fr_100px] gap-4 border-b bg-muted px-4 py-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground lg:grid">
+                <div className="hidden grid-cols-[1.2fr_1.1fr_0.6fr_0.6fr_0.75fr_0.9fr_150px] gap-4 border-b bg-muted px-4 py-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground lg:grid">
                   <span>Dataset</span>
                   <span>Filename</span>
                   <span>Rows</span>
@@ -246,8 +246,23 @@ export function DatasetsPage() {
 }
 
 function DatasetRow({ dataset }: { dataset: Dataset }) {
+  const queryClient = useQueryClient();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (datasetId: string) => deleteDataset(datasetId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["datasets"] });
+    },
+    onError: (error) => {
+      setConfirmingDelete(false);
+      setDeleteError(getApiErrorMessages(error, "Unable to delete dataset.").join(" "));
+    },
+  });
+
   return (
-    <div className="grid gap-3 border-b bg-card px-4 py-4 last:border-b-0 lg:grid-cols-[1.2fr_1.1fr_0.6fr_0.6fr_0.75fr_0.9fr_100px] lg:items-center">
+    <div className="grid gap-3 border-b bg-card px-4 py-4 last:border-b-0 lg:grid-cols-[1.2fr_1.1fr_0.6fr_0.6fr_0.75fr_0.9fr_150px] lg:items-center">
       <div>
         <Link className="font-medium text-foreground hover:text-primary" to={`/datasets/${dataset.id}`}>
           {dataset.name}
@@ -256,6 +271,7 @@ function DatasetRow({ dataset }: { dataset: Dataset }) {
           <StatusBadge status={dataset.status} />
           <span className="text-xs text-muted-foreground">{dataset.uploadedBy.email}</span>
         </div>
+        {deleteError ? <p className="mt-1 text-xs text-destructive">{deleteError}</p> : null}
       </div>
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <FileText className="h-4 w-4" />
@@ -265,12 +281,54 @@ function DatasetRow({ dataset }: { dataset: Dataset }) {
       <MetadataValue label="Columns" value={formatNumber(dataset.columnCount)} />
       <MetadataValue label="File size" value={formatFileSize(dataset.fileSizeBytes)} />
       <MetadataValue label="Uploaded" value={formatDate(dataset.fileUploadedAt ?? dataset.uploadTimestamp)} />
-      <Button asChild variant="outline" size="sm">
-        <Link to={`/datasets/${dataset.id}`} aria-label={`Preview ${dataset.name}`}>
-          <Eye />
-          Preview
-        </Link>
-      </Button>
+      <div className="flex items-center gap-1">
+        {confirmingDelete ? (
+          <>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate(dataset.id)}
+              aria-label={`Confirm delete ${dataset.name}`}
+            >
+              {deleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Confirm
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                setConfirmingDelete(false);
+                setDeleteError(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/datasets/${dataset.id}`} aria-label={`Preview ${dataset.name}`}>
+                <Eye />
+                Preview
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => {
+                setConfirmingDelete(true);
+                setDeleteError(null);
+              }}
+              aria-label={`Delete ${dataset.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

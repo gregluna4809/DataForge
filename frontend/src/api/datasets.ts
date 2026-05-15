@@ -83,6 +83,10 @@ export async function downloadCleanedDataset(datasetId: string): Promise<Cleaned
   };
 }
 
+export async function deleteDataset(datasetId: string) {
+  await apiClient.delete(`/api/datasets/${datasetId}`);
+}
+
 export async function chatWithDataset(datasetId: string, message: string, history: ChatMessage[]) {
   const response = await apiClient.post<DatasetChatResponse>(`/api/datasets/${datasetId}/chat`, {
     message,
